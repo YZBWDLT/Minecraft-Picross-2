@@ -1,0 +1,18 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "Minecraft Picross资源包",
+        "description": "巴豆为picross地图做准备",
+        "uuid": "1be28903-e073-48b9-bfd2-0278e7a10817",
+        "version": [1, 0, 1],
+        "min_engine_version": [1, 21, 130]
+    },
+    "modules": [
+        {
+            "type": "resources",
+            "uuid": "cffb65d1-58e4-46ca-9002-cf460b833b7d",
+            "version": [1, 0, 0]
+        }
+    ],
+    "capabilities": ["pbr"]
+}

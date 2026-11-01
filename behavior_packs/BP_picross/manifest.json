@@ -1,0 +1,33 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "Minecraft Picross行为包",
+        "description": "巴豆为picross地图做准备",
+        "uuid": "3cce2732-f51c-476d-92dd-75deb104479c",
+        "version": [1, 0, 1],
+        "min_engine_version": [1, 21, 130]
+    },
+    "modules": [
+        {
+            "type": "data",
+            "uuid": "794a0b7b-527c-483b-848f-37bcb6335356",
+            "version": [1, 0, 0]
+        },
+        {
+            "entry": "scripts/main.js",
+            "type": "script",
+            "uuid": "d5827218-f5d0-4258-9a35-d36746d556c0",
+            "version": [1, 0, 0]
+        }
+    ],
+    "dependencies": [
+        {
+            "uuid": "1be28903-e073-48b9-bfd2-0278e7a10817",
+            "version": [1, 0, 0]
+        },
+        {
+            "module_name": "@minecraft/server",
+            "version": "2.4.0"
+        }
+    ]
+}

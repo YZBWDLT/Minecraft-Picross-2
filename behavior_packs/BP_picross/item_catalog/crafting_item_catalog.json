@@ -1,0 +1,195 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:crafting_items_catalog": {
+        "categories": [
+            {
+                "category_name": "construction",
+                "groups": [
+                    {
+                        "group_identifier": {
+                            "icon": "picross:arrow",
+                            "name": "picross:sign.name"
+                        },
+                        "items": [
+                            "picross:arrow",
+                            "picross:arrow_gap",
+                            "picross:arrow_random",
+                            "picross:arrow_wide_left",
+                            "picross:arrow_wide_right",
+                            "picross:help_yes",
+                            "picross:help_no"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:num_0",
+                            "name": "picross:num.name"
+                        },
+                        "items": [
+							"picross:num_0",
+							"picross:num_1",
+							"picross:num_2",
+							"picross:num_3",
+							"picross:num_4",
+							"picross:num_5",
+							"picross:num_6",
+							"picross:num_7",
+							"picross:num_8",
+							"picross:num_9",
+							"picross:num_10",
+							"picross:num_11",
+							"picross:num_12",
+							"picross:num_13",
+							"picross:num_14",
+							"picross:num_15",
+							"picross:num_16",
+							"picross:num_17",
+							"picross:num_18",
+							"picross:num_19",
+							"picross:num_20",
+							"picross:num_21",
+							"picross:num_22",
+							"picross:num_23",
+							"picross:num_24",
+							"picross:num_25",
+							"picross:num_26",
+							"picross:num_27",
+							"picross:num_28",
+							"picross:num_29",
+							"picross:num_30"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:gap_0",
+                            "name": "picross:gap.name"
+                        },
+                        "items": [
+							"picross:gap_0",
+							"picross:gap_1",
+							"picross:gap_2",
+							"picross:gap_3",
+							"picross:gap_4",
+							"picross:gap_5",
+							"picross:gap_6",
+							"picross:gap_7",
+							"picross:gap_8",
+							"picross:gap_9",
+							"picross:gap_10",
+							"picross:gap_11",
+							"picross:gap_12",
+							"picross:gap_13",
+							"picross:gap_14",
+							"picross:gap_15",
+							"picross:gap_16",
+							"picross:gap_17",
+							"picross:gap_18",
+							"picross:gap_19",
+							"picross:gap_20",
+							"picross:gap_21",
+							"picross:gap_22",
+							"picross:gap_23",
+							"picross:gap_24",
+							"picross:gap_25",
+							"picross:gap_26",
+							"picross:gap_27",
+							"picross:gap_28",
+							"picross:gap_29",
+							"picross:gap_30"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:wide_left1",
+                            "name": "picross:left.name"
+                        },
+                        "items": [
+                            "picross:wide_left0",
+                            "picross:wide_left1",
+                            "picross:wide_left2",
+                            "picross:wide_left3",
+                            "picross:wide_left4",
+                            "picross:wide_left5",
+                            "picross:wide_left6"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:wide_right0",
+                            "name": "picross:right.name"
+                        },
+                        "items": [
+                            "picross:wide_right0",
+                            "picross:wide_right1",
+                            "picross:wide_right2",
+                            "picross:wide_right3",
+                            "picross:wide_right4",
+                            "picross:wide_right5",
+                            "picross:wide_right6",
+                            "picross:wide_right7",
+                            "picross:wide_right8",
+                            "picross:wide_right9"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:wide_up1",
+                            "name": "picross:up.name"
+                        },
+                        "items": [
+                            "picross:wide_up0",
+                            "picross:wide_up1",
+                            "picross:wide_up2",
+                            "picross:wide_up3",
+                            "picross:wide_up4",
+                            "picross:wide_up5",
+                            "picross:wide_up6"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:wide_down0",
+                            "name": "picross:down.name"
+                        },
+                        "items": [
+                            "picross:wide_down0",
+                            "picross:wide_down1",
+                            "picross:wide_down2",
+                            "picross:wide_down3",
+                            "picross:wide_down4",
+                            "picross:wide_down5",
+                            "picross:wide_down6",
+                            "picross:wide_down7",
+                            "picross:wide_down8",
+                            "picross:wide_down9"
+                        ]
+                    },
+                    {
+                        "group_identifier": {
+                            "icon": "picross:radar1_0_0_0_0",
+                            "name": "picross:radar1.name"
+                        },
+                        "items": [
+							"picross:radar1_0_0_0_0",
+							"picross:radar1_leftup_0_0_0",
+							"picross:radar1_0_rightup_0_0",
+							"picross:radar1_leftup_rightup_0_0",
+							"picross:radar1_0_0_leftdown_0",
+							"picross:radar1_leftup_0_leftdown_0",
+							"picross:radar1_0_rightup_leftdown_0",
+							"picross:radar1_leftup_rightup_leftdown_0",
+							"picross:radar1_0_0_0_rightdown",
+							"picross:radar1_leftup_0_0_rightdown",
+							"picross:radar1_0_rightup_0_rightdown",
+							"picross:radar1_leftup_rightup_0_rightdown",
+							"picross:radar1_0_0_leftdown_rightdown",
+							"picross:radar1_leftup_0_leftdown_rightdown",
+							"picross:radar1_0_rightup_leftdown_rightdown",
+							"picross:radar1_leftup_rightup_leftdown_rightdown"
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
