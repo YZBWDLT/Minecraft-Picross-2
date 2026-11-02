@@ -1,0 +1,14 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:block": {
+        "description": {
+            "identifier": "picross:cell_marked",
+            "menu_category": { "category": "construction" }
+        },
+        "components": {
+            "tag:picross:cell_marked": {},
+            "minecraft:material_instances": { "*": { "texture": "cell_marked" } },
+            "minecraft:geometry": "minecraft:geometry.full_block"
+        }
+    }
+}
