@@ -10,13 +10,13 @@
                 "picross:solved": [false, true]
             },
             "traits": {
-                "minecraft:placement_direction": {"enabled_states": ["minecraft:cardinal_direction"]}
+                "minecraft:placement_direction": { "enabled_states": ["minecraft:cardinal_direction"] }
             }
         },
         "components": {
-            "tag:num": {},
+            "tag:picross:number": {},
             "minecraft:collision_box": false,
-            "minecraft:selection_box": { "origin": [ -8, 0, -8 ], "size": [ 16, 1, 16 ] },
+            "minecraft:selection_box": { "origin": [-8, 0, -8], "size": [16, 1, 16] },
             "minecraft:geometry": "geometry.mark",
             "minecraft:material_instances": {
                 "up": { "texture": "num_16", "render_method": "blend" }
