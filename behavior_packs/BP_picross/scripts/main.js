@@ -17,6 +17,16 @@ minecraft.world.afterEvents.itemUse.subscribe(event => {
         player.sendMessage("§a已添加开发者权限");
     }
 });
+// #region 变量定义
+/** 棋盘方块 ID。 */
+const CellId = "picross:cell";
+/** 标记的棋盘方块 ID。 */
+const CellMarkedId = "picross:cell_marked";
+/** 锁定标记的棋盘方块 ID。 */
+const CellLockedId = "picross:cell_locked";
+/** 数字方块 ID 前缀，后面接 0~30。 */
+const NumberBlockPrefix = "picross:clue_block_";
+// #endregion
 // #region 关卡
 /** 代表一个广义的数织关卡。这个广义的数织关卡可能包括大厅关卡、游戏关卡等，支持启动关卡、退出关卡等操作。 */
 class Level {
@@ -37,7 +47,7 @@ class GameLevel extends Level {
     start() {
         Components.changeMarkBlockState();
         Components.preventPlayerBreakBlocks();
-        Components.preventPlayerPlaceBlocks();
+        Components.interactionController(this);
         lib.StructureUtils.placeAsync("picross:map_goldrush", { x: -31, y: -42, z: -31 }, { animationMode: minecraft.StructureAnimationMode.Layers, animationSeconds: 1 }).then(() => {
             this.placeBoard();
         });
@@ -45,15 +55,26 @@ class GameLevel extends Level {
     exit() {
         lib.gameSystem.unsubscribeAllEvents();
     }
+    // #region - 通用
+    /** 是否为棋盘格方块 */
+    isCell(typeId) {
+        let permutation;
+        try {
+            permutation = minecraft.BlockPermutation.resolve(typeId);
+        }
+        catch {
+            return false;
+        }
+        return permutation.hasTag(CellId);
+    }
+    // #endregion
     // #region - 场地放置
     /** 场地正中心。数织面板以此为几何中心。 */
-    static BOARD_CENTER = { x: 0, y: -41, z: 0 };
-    /** 棋盘格方块。 */
-    static CELL_BLOCK_ID = "picross:cell";
-    /** 数字方块 ID 前缀，后面接 0~30。 */
-    static NUMBER_BLOCK_PREFIX = "picross:num_";
+    static BoardCenter = { x: 0, y: -41, z: 0 };
+    /** 允许放置棋盘方块的 y。 */
+    static CellBlockY = GameLevel.BoardCenter.y;
     /** 数字方块的 y。比棋盘格高一格，贴片正好压在格子上表面。 */
-    static NUMBER_Y = GameLevel.BOARD_CENTER.y + 1;
+    static NumberBlockY = GameLevel.BoardCenter.y + 1;
     /** 放置数织面板。
      * - 面板以 (0, -41, 0) 为几何中心：棋盘格 y = -41，数字放 y = -40（比棋盘格高一格）。
      * - 面板宽 = 棋盘宽 + 各行线索个数的最大值；面板高 = 棋盘高 + 各列线索个数的最大值。
@@ -83,7 +104,7 @@ class GameLevel extends Level {
             clueRows = Math.max(clueRows, clue.length);
         const panelWidth = width + clueColumns;
         const panelHeight = height + clueRows;
-        const center = GameLevel.BOARD_CENTER;
+        const center = GameLevel.BoardCenter;
         // 起点取 -floor(尺寸/2)，对称但不严格居中（偶数尺寸总有一侧多一格）
         const boardX = center.x - Math.floor(panelWidth / 2) + clueColumns;
         const boardZ = center.z - Math.floor(panelHeight / 2) + clueRows;
@@ -91,7 +112,7 @@ class GameLevel extends Level {
         // 棋盘格
         for (let row = 0; row < height; row++) {
             for (let column = 0; column < width; column++) {
-                dimension.setBlockType({ x: boardX + column, y: center.y, z: boardZ + row }, GameLevel.CELL_BLOCK_ID);
+                dimension.setBlockType({ x: boardX + column, y: center.y, z: boardZ + row }, CellId);
             }
         }
         // 行线索：右对齐到棋盘左边
@@ -130,10 +151,36 @@ class GameLevel extends Level {
             throw new Error(`线索数字 ${value} 超出 0~30，没有对应的方块`);
         }
         // 一次写到位（resolve 会补上没指定的状态），比"先放方块再改状态"少一次世界写入
-        const permutation = minecraft.BlockPermutation.resolve(`${GameLevel.NUMBER_BLOCK_PREFIX}${value}`, {
+        const permutation = minecraft.BlockPermutation.resolve(`${NumberBlockPrefix}${value}`, {
             "minecraft:cardinal_direction": "north",
         });
-        dimension.setBlockPermutation({ x: x, y: GameLevel.NUMBER_Y, z: z }, permutation);
+        dimension.setBlockPermutation({ x: x, y: GameLevel.NumberBlockY, z: z }, permutation);
+    }
+    // #endregion
+    // #region - 场景交互
+    /** 是否可以放置棋盘格方块。 */
+    canPlaceCell(placeLocation, item) {
+        if (!item)
+            return false;
+        if (!this.isCell(item.typeId))
+            return false;
+        if (placeLocation.y !== GameLevel.CellBlockY)
+            return false;
+        return true;
+    }
+    /** 更改线索方块的状态。 */
+    changeClueState() { }
+    /** 标记方块。会自动判断输入的方块是否为标准棋盘格。 */
+    setBlockMarked(block) {
+        if (block.typeId !== CellId)
+            return;
+        lib.BlockUtils.set({ id: CellMarkedId, location: block.location });
+    }
+    /** 取消标记方块。 */
+    setBlockUnmarked(block) {
+        if (block.typeId !== CellMarkedId)
+            return;
+        lib.BlockUtils.set({ id: CellId, location: block.location });
     }
     // #endregion
     test() { }
@@ -146,40 +193,32 @@ class Components {
     static preventPlayerBreakBlocks() {
         lib.gameSystem.subscribeEvent("preventPlayerBreakBlocks", minecraft.world.beforeEvents.playerBreakBlock, event => {
             const { block, player } = event;
-            const blockIsCell = block.hasTag("picross:cell");
+            const blockIsCell = block.hasTag(CellId);
             const playerIsDeveloper = player.hasTag("picross:developer");
             // 玩家只能破坏棋盘格，如果破坏了其他方块并且不是开发者时直接阻止
             if (!blockIsCell && !playerIsDeveloper)
                 event.cancel = true;
         });
     }
-    /** 阻止玩家放置方块。
-     * @description 防止非开发者玩家放置除棋盘格之外的方块。
-     * @description 棋盘格也只能放置在 y=-41 上
+    /** 交互控制器，控制游戏的交互。
+     * @description 默认情况下，阻止任何交互。
+     * @description 允许开发者进行任意程度的交互。
+     * @description 允许玩家在规定高度放置棋盘方块。
      */
-    static preventPlayerPlaceBlocks() {
+    static interactionController(level) {
         lib.gameSystem.subscribeEvent("preventPlayerPlaceBlocks", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
             const { player, itemStack: item, isFirstEvent } = event;
             if (!isFirstEvent)
                 return;
+            event.cancel = true;
+            // 允许开发者进行任意程度的交互
             const playerIsDeveloper = player.hasTag("picross:developer");
             if (playerIsDeveloper)
-                return;
-            const isCell = (typeId) => {
-                let permutation;
-                try {
-                    permutation = minecraft.BlockPermutation.resolve(typeId);
-                }
-                catch {
-                    return false;
-                }
-                return permutation.hasTag("picross:cell");
-            };
-            if (!isCell(item?.typeId ?? ""))
                 event.cancel = true;
+            // 允许玩家放置棋盘方块
             const placeLocation = lib.BlockUtils.getPlaceLocation(event);
-            if (placeLocation.y !== -41)
-                event.cancel = true;
+            if (level.canPlaceCell(placeLocation, item))
+                event.cancel = false;
         });
     }
     /** 当玩家和标记方块交互时，更改其状态。 */
@@ -189,7 +228,7 @@ class Components {
             if (!isFirstEvent)
                 return;
             // 当玩家和数字和箭头交互时，切换数字和箭头的解决状态
-            if (block.hasTag("picross:number") || block.hasTag("picross:arrow")) {
+            if (block.hasTag("picross:clue") || block.hasTag("picross:arrow")) {
                 // @ts-ignore
                 const isSolved = block.permutation.getState("picross:solved");
                 minecraft.system.run(() => lib.BlockUtils.setState(block, { "picross:solved": !isSolved }));
