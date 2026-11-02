@@ -1,0 +1,16 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:item": {
+        "description": {
+            "identifier": "picross:help_no",
+            "menu_category": {
+                "category": "construction"
+            }
+        },
+        "components": {
+            "minecraft:icon": "help_no",
+            "minecraft:block_placer": { "replace_block_item": true, "block": "picross:help_no" },
+            "minecraft:display_name": { "value": "tile.picross:help_no.name" }
+        }
+    }
+}

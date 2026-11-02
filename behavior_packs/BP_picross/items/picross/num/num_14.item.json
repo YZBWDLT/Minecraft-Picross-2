@@ -1,0 +1,16 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:item": {
+        "description": {
+            "identifier": "picross:num_14",
+            "menu_category": {
+                "category": "construction"
+            }
+        },
+        "components": {
+            "minecraft:icon": "num_14",
+            "minecraft:block_placer": { "replace_block_item": true, "block": "picross:num_14" },
+            "minecraft:display_name": { "value": "tile.picross:num_14.name" }
+        }
+    }
+}

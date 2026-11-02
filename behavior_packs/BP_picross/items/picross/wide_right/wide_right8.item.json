@@ -1,0 +1,16 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:item": {
+        "description": {
+            "identifier": "picross:wide_right8",
+            "menu_category": {
+                "category": "construction"
+            }
+        },
+        "components": {
+            "minecraft:icon": "wide_right8",
+            "minecraft:block_placer": { "replace_block_item": true, "block": "picross:wide_right8" },
+            "minecraft:display_name": { "value": "tile.picross:wide_right8.name" }
+        }
+    }
+}
