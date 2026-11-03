@@ -3,15 +3,11 @@
     "minecraft:item": {
         "description": {
             "identifier": "picross:eraser",
-            "menu_category": {
-                "category": "equipment"
-            }
+            "menu_category": { "category": "equipment" }
         },
         "components": {
             "minecraft:icon": "eraser",
-            "minecraft:display_name": { "value": "item.picross:eraser" },
-            "minecraft:max_stack_size": 1,
-            "minecraft:hand_equipped": true
+            "minecraft:max_stack_size": 1
         }
     }
 }

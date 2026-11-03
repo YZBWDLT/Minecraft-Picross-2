@@ -7,7 +7,7 @@
         },
         "components": {
             "tag:picross:cell_marked": {},
-            "minecraft:material_instances": { "*": { "texture": "cell_marked" } },
+            "minecraft:material_instances": { "*": { "texture": "cell" }, "up": { "texture": "cell_marked" } },
             "minecraft:geometry": "minecraft:geometry.full_block"
         }
     }
