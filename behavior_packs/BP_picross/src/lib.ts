@@ -2506,8 +2506,9 @@ export class JSUtils {
 
 export class Debug {
     /** 发送一个调试性消息 */
-    static sendMessage(message: any) {
-        minecraft.world.sendMessage(`${message}`);
+    static sendMessage(message: any, messageType: "actionBar" | "chat" = "chat") {
+        if (messageType === "chat") minecraft.world.sendMessage(`${message}`);
+        else minecraft.world.getPlayers().forEach(player => player.onScreenDisplay.setActionBar(`${message}`));
     }
 
     /** 打印数组 */

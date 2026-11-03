@@ -190,10 +190,10 @@
                     },
                     {
                         "group_identifier": {
-                            "icon": "picross:cell",
-                            "name": "picross:cell.name"
+                            "icon": "picross:cell_block",
+                            "name": "picross:cell_block.name"
                         },
-                        "items": ["picross:cell", "picross:cell_marked", "picross:cell_locked"]
+                        "items": ["picross:cell_block", "picross:marked_cell_block", "picross:locked_cell_block"]
                     }
                 ]
             },

@@ -6,7 +6,7 @@
  *      （无 DOM、无 console、无计时器、无文件系统），只做纯数据计算。
  *   2. 便于未来照搬到中国版 ModAPI（Python 2.7）：只使用枚举、类、数组、普通函数与循环，
  *      没有生成器、没有 Map/Set，翻译时几乎是逐函数对应。
- *   3. 只负责"棋盘与线索的真相"，不关心怎么显示。显示层（方块、贴图、UI）由调用方负责。
+ *   3. 只负责"盘面与线索的真相"，不关心怎么显示。显示层（方块、贴图、UI）由调用方负责。
  *
  * 结构（按"操作对象"分组，而不是按代码长度堆在一起）：
  *   - Clues        线索数组的纯函数工具：规范化、从格子生成、比较、能否放下。
@@ -17,7 +17,7 @@
  *
  * 坐标与状态约定：
  *   - row 向下递增，column 向右递增，均从 0 开始。
- *   - 单元格三态用字符串表示：unknown / filled / blank。
+ *   - 单元格四态用字符串表示：unknown / filled / blank / locked，与盘面上的四种方块一一对应。
  *
  * 典型用法（TypeScript / SAPI 脚本）：
  *   import { PicrossGame, CellState } from "./picross.js";
@@ -25,11 +25,13 @@
  *   // 从图案创建关卡（'#' 已涂、'.' 空白）
  *   const game = PicrossGame.fromPattern(["..#..", "..#..", "#####"], "十字");
  *
- *   // 玩家操作
- *   game.setCell(row, column, CellState.Filled);
- *   game.cycleCell(row, column);          // 未知 → 已涂 → 空 → 未知
+ *   // 玩家操作：返回值是本次变化的全部格子（含自动打叉的连带变化），照着刷方块即可
+ *   game.markFilled(row, column);      // 挖掉格子方块 → 填涂
+ *   game.markBlank(row, column);       // 铅笔标记格子方块 → 标记为空
+ *   game.markUnknown(row, column);     // 橡皮取消标记 → 回到格子方块
  *
  *   // 查询
+ *   game.getCell(row, column);         // 当前状态
  *   game.isRowComplete(row);           // 该行是否已满足线索
  *   game.getRowRemaining(row);         // 该行还差几个实心格
  *   game.isSolved();                   // 整盘是否完成
@@ -42,15 +44,21 @@
  * 由基于 Deepseek v4.1 flash 的 WorkBuddy 生成。
  */
 // #region 常量与基础类型
-/** 单元格的三个状态。 */
+/**
+ * 单元格状态，与盘面上的四种方块一一对应。
+ *
+ * 前三种由玩家操作产生，第四种 Locked 由关卡初始状态给定。
+ */
 export var CellState;
 (function (CellState) {
-    /** 未知：玩家还没处理。 */
+    /** 未知：对应格子方块。可以铅笔标记，也可以挖掉填涂。 */
     CellState["Unknown"] = "unknown";
-    /** 已涂：确认为实心格。 */
+    /** 已涂：对应被挖掉的格子（空气），代表实心。 */
     CellState["Filled"] = "filled";
-    /** 已标记为空（叉）。 */
+    /** 已标记为空：对应标记格子方块。可以橡皮取消，不能直接挖。 */
     CellState["Blank"] = "blank";
+    /** 锁定标记：对应锁定标记格子方块。初始就有，玩家无法修改。 */
+    CellState["Locked"] = "locked";
 })(CellState || (CellState = {}));
 // #endregion
 // #region 内部小工具
@@ -60,9 +68,20 @@ export var CellState;
  */
 function cellAt(cells, index) {
     const value = cells[index];
-    if (value === CellState.Filled || value === CellState.Blank)
+    if (value === CellState.Filled)
+        return value;
+    if (value === CellState.Blank)
+        return value;
+    if (value === CellState.Locked)
         return value;
     return CellState.Unknown;
+}
+/**
+ * 该状态是否属于"已知为空"。
+ * 玩家标记的 Blank 和关卡给定的 Locked 在推理与判定里完全等价，只有能否修改的区别。
+ */
+function isBlank(state) {
+    return state === CellState.Blank || state === CellState.Locked;
 }
 /**
  * 安全读取线索数组。
@@ -181,7 +200,7 @@ export class Line {
         // 预处理：空格前缀、后缀是否还残留实心格
         const blankPrefix = line.reduce((prefix, state) => {
             const last = numberAt(prefix, prefix.length - 1);
-            prefix.push(last + (state === CellState.Blank ? 1 : 0));
+            prefix.push(last + (isBlank(state) ? 1 : 0));
             return prefix;
         }, [0]);
         const noFilledFrom = new Uint8Array(length + 1);
@@ -413,9 +432,9 @@ export class Puzzle {
         const height = Puzzle.height(puzzle);
         const width = Puzzle.width(puzzle);
         if (height <= 0)
-            problems.push("rowClues 不能为空，棋盘至少要有 1 行");
+            problems.push("rowClues 不能为空，盘面至少要有 1 行");
         if (width <= 0)
-            problems.push("columnClues 不能为空，棋盘至少要有 1 列");
+            problems.push("columnClues 不能为空，盘面至少要有 1 列");
         puzzle.rowClues.forEach((clue, r) => {
             try {
                 Clues.normalize(clue);
@@ -444,12 +463,18 @@ export class Puzzle {
 // #endregion
 // #region 游戏实例
 export class PicrossGame {
+    /** 谜题的长度（等于列线索的数量）。 */
     width;
+    /** 谜题的高度（等于行线索的数量）。 */
     height;
-    _name;
-    _rowClues;
-    _columnClues;
-    _solution;
+    /** 关卡名，未命名时为空字符串。 */
+    name;
+    /** 每行的线索。 */
+    rowClues;
+    /** 每列的线索。 */
+    columnClues;
+    /** 答案扁平数组（未提供则为 undefined）。 */
+    solution;
     _historyLimit;
     _autoCross;
     /** 扁平存储：index = row * width + column */
@@ -463,9 +488,9 @@ export class PicrossGame {
             throw new Error(`谜题定义有误：${problems.join("；")}`);
         this.width = Puzzle.width(puzzle);
         this.height = Puzzle.height(puzzle);
-        this._name = puzzle.name ?? "";
-        this._rowClues = puzzle.rowClues.map(clue => Clues.normalize(clue));
-        this._columnClues = puzzle.columnClues.map(clue => Clues.normalize(clue));
+        this.name = puzzle.name ?? "";
+        this.rowClues = Object.freeze(puzzle.rowClues.map(clue => Object.freeze(Clues.normalize(clue))));
+        this.columnClues = Object.freeze(puzzle.columnClues.map(clue => Object.freeze(Clues.normalize(clue))));
         this._historyLimit = Math.max(1, Math.floor(options?.historyLimit ?? 64));
         this._autoCross = options?.autoCross === true;
         this.undoStack = [];
@@ -480,12 +505,16 @@ export class PicrossGame {
                     throw new Error(`答案第 ${r} 行长度与 width 不一致`);
                 row.forEach(filled => flat.push(filled === true));
             });
-            this._solution = flat;
+            this.solution = Object.freeze(flat);
         }
         else {
-            this._solution = undefined;
+            this.solution = undefined;
         }
         this.cells = new Array(this.width * this.height).fill(CellState.Unknown);
+        options?.locked?.forEach(pos => {
+            this.assertInBounds(pos.row, pos.column);
+            this.cells[this.index(pos.row, pos.column)] = CellState.Locked;
+        });
     }
     /** 由图案字符串创建实例（图案同时作为答案保存，便于提示）。 */
     static fromPattern(patterns, name, options) {
@@ -506,30 +535,17 @@ export class PicrossGame {
             puzzle.name = snapshot.name;
         const game = new PicrossGame(puzzle, options);
         if (snapshot.cells.length !== game.cells.length)
-            throw new Error("快照的 cells 数量与棋盘尺寸不符");
+            throw new Error("快照的 cells 数量与盘面尺寸不符");
         game.cells = Array.from({ length: game.cells.length }, (_, i) => cellAt(snapshot.cells, i));
         return game;
     }
     // #endregion
     // #region - 基本信息
-    get name() {
-        return this._name;
-    }
-    get rowClues() {
-        return this._rowClues;
-    }
-    get columnClues() {
-        return this._columnClues;
-    }
-    /** 答案扁平数组（未提供则为 undefined）。 */
-    get solution() {
-        return this._solution;
-    }
     rowClue(row) {
-        return clueAt(this._rowClues, row);
+        return clueAt(this.rowClues, row);
     }
     columnClue(column) {
-        return clueAt(this._columnClues, column);
+        return clueAt(this.columnClues, column);
     }
     index(row, column) {
         return row * this.width + column;
@@ -588,26 +604,39 @@ export class PicrossGame {
         this.cells = snapshot;
         return true;
     }
-    /** 清空棋盘（可撤销）；本来就是空盘时什么也不做。 */
+    /** 清空盘面（可撤销），锁定格会被保留；本来就是空盘时什么也不做。 */
     reset() {
-        if (this.cells.every(state => state === CellState.Unknown))
+        const dirty = this.cells.some(state => state !== CellState.Unknown && state !== CellState.Locked);
+        if (!dirty)
             return;
         this.beginEdit();
-        this.cells.fill(CellState.Unknown);
+        this.cells.forEach((state, index) => {
+            if (state !== CellState.Locked)
+                this.cells[index] = CellState.Unknown;
+        });
     }
     // #endregion
     // #region - 写入
-    /** 设置单元格；状态没变化时返回 false，且不产生撤销记录。 */
+    /**
+     * 设置单元格，返回实际发生的变更（空数组表示什么都没改）。
+     * - 锁定格不可修改，直接返回空数组。
+     * - 状态没变化时返回空数组，且不产生撤销记录。
+     * - 开了 autoCross 时，连带打叉的格子也会一并出现在返回值里。
+     */
     setCell(row, column, state) {
         this.assertInBounds(row, column);
+        if (state === CellState.Locked)
+            throw new Error("锁定格只能在构造时通过 GameOptions.locked 指定");
         const index = this.index(row, column);
-        if (this.stateAt(index) === state)
-            return false;
+        const previous = this.stateAt(index);
+        if (previous === CellState.Locked || previous === state)
+            return [];
         this.beginEdit();
         this.cells[index] = state;
+        const changes = [{ row, column, previous, state }];
         if (this._autoCross)
-            this.autoCrossLinesInternal();
-        return true;
+            changes.push(...this.autoCrossLinesInternal());
+        return changes;
     }
     markFilled(row, column) {
         return this.setCell(row, column, CellState.Filled);
@@ -618,27 +647,14 @@ export class PicrossGame {
     markUnknown(row, column) {
         return this.setCell(row, column, CellState.Unknown);
     }
-    /** 循环切换：未知 → 已涂 → 空 → 未知。返回切换后的状态。 */
-    cycleCell(row, column) {
-        const current = this.getCell(row, column);
-        let next = CellState.Unknown;
-        if (current === CellState.Unknown) {
-            next = CellState.Filled;
-        }
-        else if (current === CellState.Filled) {
-            next = CellState.Blank;
-        }
-        this.setCell(row, column, next);
-        return next;
-    }
-    /** 批量写入（整体算一次撤销），返回实际发生变化的格子。 */
+    /** 批量写入（整体算一次撤销），返回实际发生变化的格子。锁定格会被跳过。 */
     applyChanges(changes) {
         const effective = [];
         changes.forEach(change => {
             this.assertInBounds(change.row, change.column);
             const index = this.index(change.row, change.column);
             const previous = this.stateAt(index);
-            if (previous === change.state)
+            if (previous === CellState.Locked || previous === change.state)
                 return;
             effective.push({ row: change.row, column: change.column, previous, state: change.state });
         });
@@ -649,7 +665,7 @@ export class PicrossGame {
             this.cells[this.index(change.row, change.column)] = change.state;
         });
         if (this._autoCross)
-            this.autoCrossLinesInternal();
+            effective.push(...this.autoCrossLinesInternal());
         return effective;
     }
     // #endregion
@@ -668,10 +684,10 @@ export class PicrossGame {
     }
     /** 整盘是否完成：所有行、所有列的实心段都等于线索。 */
     isSolved() {
-        const rowsDone = this._rowClues.every((_, r) => this.isRowComplete(r));
+        const rowsDone = this.rowClues.every((_, r) => this.isRowComplete(r));
         if (!rowsDone)
             return false;
-        return this._columnClues.every((_, c) => this.isColumnComplete(c));
+        return this.columnClues.every((_, c) => this.isColumnComplete(c));
     }
     /** 该行还差几个实心格（负数表示涂多了）。 */
     getRowRemaining(row) {
@@ -693,14 +709,14 @@ export class PicrossGame {
         let filled = 0;
         let required = 0;
         let completedLines = 0;
-        this._rowClues.forEach((_, r) => {
+        this.rowClues.forEach((_, r) => {
             const stats = this.getRowStats(r);
             required += stats.required;
             filled += stats.filled;
             if (stats.complete)
                 completedLines++;
         });
-        this._columnClues.forEach((_, c) => {
+        this.columnClues.forEach((_, c) => {
             if (this.getColumnStats(c).complete)
                 completedLines++;
         });
@@ -708,23 +724,30 @@ export class PicrossGame {
     }
     // #endregion
     // #region - 自动打叉
+    /** 给已完成的行列打叉，返回变化的格子（内部使用，撤销记录由调用方负责）。 */
     autoCrossLinesInternal() {
-        this._rowClues.forEach((_, r) => {
+        const changes = [];
+        this.rowClues.forEach((_, r) => {
             if (!this.isRowComplete(r))
                 return;
             this.getRow(r).forEach((state, c) => {
-                if (state === CellState.Unknown)
-                    this.cells[this.index(r, c)] = CellState.Blank;
+                if (state !== CellState.Unknown)
+                    return;
+                this.cells[this.index(r, c)] = CellState.Blank;
+                changes.push({ row: r, column: c, previous: CellState.Unknown, state: CellState.Blank });
             });
         });
-        this._columnClues.forEach((_, c) => {
+        this.columnClues.forEach((_, c) => {
             if (!this.isColumnComplete(c))
                 return;
             this.getColumn(c).forEach((state, r) => {
-                if (state === CellState.Unknown)
-                    this.cells[this.index(r, c)] = CellState.Blank;
+                if (state !== CellState.Unknown)
+                    return;
+                this.cells[this.index(r, c)] = CellState.Blank;
+                changes.push({ row: r, column: c, previous: CellState.Unknown, state: CellState.Blank });
             });
         });
+        return changes;
     }
     /** 给所有已完成的行列自动打叉，返回变化的格子。 */
     autoCrossCompletedLines() {
@@ -734,12 +757,12 @@ export class PicrossGame {
                 return;
             changes.push({ row, column, previous: CellState.Unknown, state: CellState.Blank });
         };
-        this._rowClues.forEach((_, r) => {
+        this.rowClues.forEach((_, r) => {
             if (!this.isRowComplete(r))
                 return;
             this.getRow(r).forEach((_, c) => pushBlank(r, c));
         });
-        this._columnClues.forEach((_, c) => {
+        this.columnClues.forEach((_, c) => {
             if (!this.isColumnComplete(c))
                 return;
             this.getColumn(c).forEach((_, r) => pushBlank(r, c));
@@ -748,7 +771,7 @@ export class PicrossGame {
     }
     // #endregion
     // #region - 推导与提示
-    /** 计算当前所有可推导的格子（不修改棋盘）。 */
+    /** 计算当前所有可推导的格子（不修改盘面）。 */
     deduceOnce() {
         const result = [];
         const marked = new Uint8Array(this.cells.length);
@@ -762,14 +785,14 @@ export class PicrossGame {
                 return;
             result.push({ row, column, previous, state });
         };
-        this._rowClues.forEach((_, r) => {
+        this.rowClues.forEach((_, r) => {
             const analysis = Line.analyze(this.getRow(r), this.rowClue(r));
             if (analysis.contradiction)
                 return;
             analysis.forcedFilled.forEach(column => push(r, column, CellState.Filled));
             analysis.forcedBlank.forEach(column => push(r, column, CellState.Blank));
         });
-        this._columnClues.forEach((_, c) => {
+        this.columnClues.forEach((_, c) => {
             const analysis = Line.analyze(this.getColumn(c), this.columnClue(c));
             if (analysis.contradiction)
                 return;
@@ -779,7 +802,7 @@ export class PicrossGame {
         return result;
     }
     /**
-     * 反复推导并写入棋盘，直到没有任何新结论（整体算一次撤销）。
+     * 反复推导并写入盘面，直到没有任何新结论（整体算一次撤销）。
      * maxSteps 只是保险，正常 30×30 以内几轮就稳定。
      */
     applyDeduction(maxSteps) {
@@ -799,11 +822,11 @@ export class PicrossGame {
             round = this.deduceOnce();
         }
         if (this._autoCross)
-            this.autoCrossLinesInternal();
+            applied.push(...this.autoCrossLinesInternal());
         return applied;
     }
     /**
-     * 取一个提示并直接写入棋盘（算作一次撤销）。
+     * 取一个提示并直接写入盘面（算作一次撤销）。
      * 优先用逻辑推导；推导不出来且有答案时，按答案揭示一格。
      */
     takeHint() {
@@ -816,11 +839,11 @@ export class PicrossGame {
             this.applyChanges([picked]);
             return picked;
         }
-        const solution = this._solution;
+        const solution = this.solution;
         if (solution === undefined)
             return undefined;
         const targetOf = (index) => (solution[index] === true ? CellState.Filled : CellState.Blank);
-        const index = this.cells.findIndex((state, i) => state !== targetOf(i));
+        const index = this.cells.findIndex((state, i) => state !== CellState.Locked && state !== targetOf(i));
         if (index < 0)
             return undefined;
         const row = Math.floor(index / this.width);
@@ -835,12 +858,12 @@ export class PicrossGame {
     }
     /** 与答案不符的格子（需要提供 solution）。 */
     findMistakes() {
-        const solution = this._solution;
+        const solution = this.solution;
         const result = [];
         if (solution === undefined)
             return result;
         this.cells.forEach((state, i) => {
-            if (state === CellState.Unknown)
+            if (state === CellState.Unknown || state === CellState.Locked)
                 return;
             if ((state === CellState.Filled) === (solution[i] === true))
                 return;
@@ -851,7 +874,7 @@ export class PicrossGame {
     }
     /** 按答案铺满（调试用，算作一次撤销）。 */
     fillFromSolution() {
-        const solution = this._solution;
+        const solution = this.solution;
         if (solution === undefined)
             return [];
         const changes = this.cells.map((state, i) => {
@@ -868,15 +891,15 @@ export class PicrossGame {
     // #endregion
     // #region - 序列化
     toJSON() {
-        const rowClues = this._rowClues.map(clue => [...clue]);
-        const columnClues = this._columnClues.map(clue => [...clue]);
+        const rowClues = this.rowClues.map(clue => [...clue]);
+        const columnClues = this.columnClues.map(clue => [...clue]);
         const snapshot = {
             rowClues,
             columnClues,
             cells: this.cells.slice(),
         };
-        if (this._name !== "")
-            snapshot.name = this._name;
+        if (this.name !== "")
+            snapshot.name = this.name;
         return snapshot;
     }
     clone() {
@@ -888,12 +911,12 @@ export class PicrossGame {
     }
     /** 答案还原成二维布尔网格（未提供答案则 undefined）。 */
     solutionGrid() {
-        const solution = this._solution;
+        const solution = this.solution;
         if (solution === undefined)
             return undefined;
         return Array.from({ length: this.height }, (_, r) => Array.from({ length: this.width }, (_, c) => solution[this.index(r, c)] === true));
     }
-    /** 文本渲染，调试用：'?' 未知、'#' 已涂、'.' 空格。 */
+    /** 文本渲染，调试用：'?' 未知、'#' 已涂、'.' 空格、'x' 锁定空。 */
     toDisplayString() {
         return Array.from({ length: this.height }, (_, r) => Array.from({ length: this.width }, (_, c) => {
             const state = this.getCell(r, c);
@@ -901,6 +924,8 @@ export class PicrossGame {
                 return "#";
             if (state === CellState.Blank)
                 return ".";
+            if (state === CellState.Locked)
+                return "x";
             return "?";
         }).join("")).join("\n");
     }

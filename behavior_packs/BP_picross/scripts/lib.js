@@ -1805,8 +1805,11 @@ export class JSUtils {
 // #region 调试方法
 export class Debug {
     /** 发送一个调试性消息 */
-    static sendMessage(message) {
-        minecraft.world.sendMessage(`${message}`);
+    static sendMessage(message, messageType = "chat") {
+        if (messageType === "chat")
+            minecraft.world.sendMessage(`${message}`);
+        else
+            minecraft.world.getPlayers().forEach(player => player.onScreenDisplay.setActionBar(`${message}`));
     }
     /** 打印数组 */
     static printArray(array, arrayName) {

@@ -238,8 +238,8 @@
         "radar_clue_block_1011_solved": { "textures": "textures/blocks/radar_clue_block/radar_clue_block_1011_solved" },
         "radar_clue_block_0111_solved": { "textures": "textures/blocks/radar_clue_block/radar_clue_block_0111_solved" },
         "radar_clue_block_1111_solved": { "textures": "textures/blocks/radar_clue_block/radar_clue_block_1111_solved" },
-        "cell": { "textures": "textures/blocks/cell/goldrush_cell" },
-        "cell_marked": { "textures": "textures/blocks/cell/goldrush_cell_marked" },
-        "cell_locked": { "textures": "textures/blocks/cell/goldrush_cell_locked" }
+        "cell_block": { "textures": "textures/blocks/cell/goldrush_cell_block" },
+        "marked_cell_block": { "textures": "textures/blocks/cell/goldrush_marked_cell_block" },
+        "locked_cell_block": { "textures": "textures/blocks/cell/goldrush_locked_cell_block" }
     }
 }

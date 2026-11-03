@@ -2,12 +2,12 @@
     "format_version": "1.21.130",
     "minecraft:block": {
         "description": {
-            "identifier": "picross:cell",
+            "identifier": "picross:locked_cell_block",
             "menu_category": { "category": "construction" }
         },
         "components": {
-            "tag:picross:cell": {},
-            "minecraft:material_instances": { "*": { "texture": "cell" } },
+            "tag:picross:locked_cell_block": {},
+            "minecraft:material_instances": { "*": { "texture": "cell_block" }, "up": { "texture": "locked_cell_block" } },
             "minecraft:geometry": "minecraft:geometry.full_block"
         }
     }
