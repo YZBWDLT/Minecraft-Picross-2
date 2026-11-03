@@ -166,26 +166,26 @@
                     },
                     {
                         "group_identifier": {
-                            "icon": "picross:radar_clue_block_0_0_0_0",
+                            "icon": "picross:radar_clue_block_0000",
                             "name": "picross:radar_clue_block.name"
                         },
                         "items": [
-                            "picross:radar_clue_block_0_0_0_0",
-                            "picross:radar_clue_block_leftup_0_0_0",
-                            "picross:radar_clue_block_0_rightup_0_0",
-                            "picross:radar_clue_block_leftup_rightup_0_0",
-                            "picross:radar_clue_block_0_0_leftdown_0",
-                            "picross:radar_clue_block_leftup_0_leftdown_0",
-                            "picross:radar_clue_block_0_rightup_leftdown_0",
-                            "picross:radar_clue_block_leftup_rightup_leftdown_0",
-                            "picross:radar_clue_block_0_0_0_rightdown",
-                            "picross:radar_clue_block_leftup_0_0_rightdown",
-                            "picross:radar_clue_block_0_rightup_0_rightdown",
-                            "picross:radar_clue_block_leftup_rightup_0_rightdown",
-                            "picross:radar_clue_block_0_0_leftdown_rightdown",
-                            "picross:radar_clue_block_leftup_0_leftdown_rightdown",
-                            "picross:radar_clue_block_0_rightup_leftdown_rightdown",
-                            "picross:radar_clue_block_leftup_rightup_leftdown_rightdown"
+                            "picross:radar_clue_block_0000",
+                            "picross:radar_clue_block_1000",
+                            "picross:radar_clue_block_0100",
+                            "picross:radar_clue_block_1100",
+                            "picross:radar_clue_block_0010",
+                            "picross:radar_clue_block_1010",
+                            "picross:radar_clue_block_0110",
+                            "picross:radar_clue_block_1110",
+                            "picross:radar_clue_block_0001",
+                            "picross:radar_clue_block_1001",
+                            "picross:radar_clue_block_0101",
+                            "picross:radar_clue_block_1101",
+                            "picross:radar_clue_block_0011",
+                            "picross:radar_clue_block_1011",
+                            "picross:radar_clue_block_0111",
+                            "picross:radar_clue_block_1111"
                         ]
                     },
                     {
