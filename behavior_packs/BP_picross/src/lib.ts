@@ -1211,6 +1211,27 @@ export class PlayerUtils {
             else player.playSound(sound, soundOptions);
         }
     }
+
+    /** 锁定玩家，隐藏 HUD 并禁用玩家的移动。 */
+    static lockPlayers(players?: minecraft.Player[]) {
+        players = players ?? this.getAll();
+        players.forEach(player => {
+            player.inputPermissions.setPermissionCategory(minecraft.InputPermissionCategory.Camera, false);
+            player.inputPermissions.setPermissionCategory(minecraft.InputPermissionCategory.Movement, false);
+            player.onScreenDisplay.setHudVisibility(minecraft.HudVisibility.Hide);
+        });
+    }
+
+    /** 解除锁定玩家，恢复 HUD 和相机并启用玩家的移动。 */
+    static unlockPlayers(players?: minecraft.Player[]) {
+        players = players ?? this.getAll();
+        players.forEach(player => {
+            player.camera.clear();
+            player.inputPermissions.setPermissionCategory(minecraft.InputPermissionCategory.Camera, true);
+            player.inputPermissions.setPermissionCategory(minecraft.InputPermissionCategory.Movement, true);
+            player.onScreenDisplay.setHudVisibility(minecraft.HudVisibility.Reset);
+        });
+    }
 }
 
 // #endregion
