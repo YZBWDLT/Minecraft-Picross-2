@@ -42,22 +42,20 @@ const NumberBlockPrefix = "picross:clue_block_";
 
 // #endregion
 
+// #region 系统
+
+/** Minecraft 数织系统。 */
+class MinecraftPicrossSystem {}
+
+// #endregion
+
 // #region 关卡
 
-/** 代表一个广义的数织关卡。这个广义的数织关卡可能包括大厅关卡、游戏关卡等，支持启动关卡、退出关卡等操作。 */
+class Menu {}
+
+/** 代表一个游戏关卡。 */
 class Level {
-    constructor() {}
-
-    /** 启动关卡。 */
-    start() {}
-
-    /** 离开关卡。 */
-    exit() {}
-}
-
-class GameLevel extends Level {
     constructor(puzzle: picross.PuzzleDefinition, options?: picross.GameOptions) {
-        super();
         this.game = new picross.PicrossGame(puzzle, options);
         this.start();
     }
@@ -98,15 +96,17 @@ class GameLevel extends Level {
         return permutation.hasTag(CellBlockId);
     }
 
-    getPicrossLocation(location: minecraft.Vector3) {
-        const column = location.x - this.startLocation.x;
-        const row = location.z - this.startLocation.z;
-        return {
-            /** 坐标所对应的列坐标。 */
-            column,
+    /** 将 Minecraft 坐标转换为 Picross 游戏实例的行列坐标。 */
+    getPicrossLocation(location: minecraft.Vector3): picross.CellPos {
+        return { column: location.x - this.startLocation.x, row: location.z - this.startLocation.z };
+    }
 
-            /** 坐标所对应的行坐标。 */
-            row,
+    /** 将 Picross 行列坐标转换为 Minecraft 游戏实例的坐标。 */
+    getMinecraftLocation(position: picross.CellPos): minecraft.Vector3 {
+        return {
+            x: position.column + this.startLocation.x,
+            y: Level.CellBlockY,
+            z: position.row + this.startLocation.z,
         };
     }
 
@@ -118,19 +118,18 @@ class GameLevel extends Level {
     static readonly BoardCenter: minecraft.Vector3 = { x: 0, y: -41, z: 0 };
 
     /** 允许放置格子方块的 y。 */
-    static readonly CellBlockY = GameLevel.BoardCenter.y;
+    static readonly CellBlockY = Level.BoardCenter.y;
 
     /** 线索方块的 y。比格子方块高一格，贴片正好压在格子上表面。 */
-    static readonly NumberBlockY = GameLevel.BoardCenter.y + 1;
+    static readonly NumberBlockY = Level.BoardCenter.y + 1;
 
-    /** 放置数织面板。
+    /** 放置数织面板，并将盘面左上角（第 0 行第 0 列）的坐标写入 startLocation。。
      * - 面板以 (0, -41, 0) 为几何中心：格子方块 y = -41，线索放 y = -40（比格子方块高一格）。
      * - 面板宽 = 盘面宽 + 各行线索个数的最大值；面板高 = 盘面高 + 各列线索个数的最大值。
      *   例：某行线索为 `1 1 1`、盘面宽 5，则该行占用 3 + 5 = 8 格；线索为 `3 1` 时占用 2 + 5 = 7 格。
      * - 行线索紧贴盘面左侧并右对齐，列线索紧贴盘面上方并下对齐。
      * - 格子方块放置 `picross:cell_block`；线索方块放置 `picross:clue_block_x`，cardinal_direction 统一为 north，
      *   即玩家站在南侧朝北看时文字正立——也就是行向 +z 递增、列向 +x 递增。
-     * - 盘面左上角（第 0 行第 0 列）的坐标写入 startLocation。
      * - 面板宽或高为偶数时无法严格居中，会向右、向上各多占一格。
      */
     placeBoard() {
@@ -152,11 +151,12 @@ class GameLevel extends Level {
 
         const panelWidth = width + clueColumns;
         const panelHeight = height + clueRows;
-        const center = GameLevel.BoardCenter;
+        const center = Level.BoardCenter;
 
         // 起点取 -floor(尺寸/2)，对称但不严格居中（偶数尺寸总有一侧多一格）
         const boardX = center.x - Math.floor(panelWidth / 2) + clueColumns;
         const boardZ = center.z - Math.floor(panelHeight / 2) + clueRows;
+        this.startLocation = { x: boardX, y: center.y, z: boardZ };
 
         const dimension = minecraft.world.getDimension("overworld");
 
@@ -193,7 +193,10 @@ class GameLevel extends Level {
             }
         }
 
-        this.startLocation = { x: boardX, y: center.y, z: boardZ };
+        // 放置锁定标记的格子方块
+        this.game.getLockedCells().forEach(lockedCellPos => {
+            lib.BlockUtils.set({ id: CellLockedBlockId, location: this.getMinecraftLocation(lockedCellPos) });
+        });
     }
 
     /** 在面板上放一个线索方块，朝向统一为北。
@@ -208,78 +211,64 @@ class GameLevel extends Level {
         const permutation = minecraft.BlockPermutation.resolve(`${NumberBlockPrefix}${value}`, {
             "minecraft:cardinal_direction": "north",
         });
-        dimension.setBlockPermutation({ x: x, y: GameLevel.NumberBlockY, z: z }, permutation);
+        dimension.setBlockPermutation({ x: x, y: Level.NumberBlockY, z: z }, permutation);
     }
 
     // #endregion
 
     // #region - 场景状态更改
 
+    /** 将 Minecraft 层面的方块更改应用到游戏实例上。
+     * @returns 返回谜题是否已被解决。
+     */
+    private applyChangeToGameInstance(location: minecraft.Vector3, state: picross.CellState): boolean {
+        const { column, row } = this.getPicrossLocation(location);
+
+        // 对行列状态进行修改
+        if (state === picross.CellState.Blank) this.game.markBlank(row, column);
+        else if (state === picross.CellState.Filled) this.game.markFilled(row, column);
+        else if (state === picross.CellState.Unknown) this.game.markUnknown(row, column);
+
+        // 检查谜题是否已解决
+        const puzzleSolved = this.game.isSolved();
+
+        // 调试用
+        let debugMessage = `§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §a${state}§7 状态`;
+        if (puzzleSolved) debugMessage = debugMessage + `\n§b谜题已被解开！`;
+        lib.Debug.sendMessage(debugMessage, "actionBar");
+
+        return puzzleSolved;
+    }
+
     /** 更改线索方块或箭头方块的状态。 */
     changeClueAndArrowBlockState(block: minecraft.Block) {
         // @ts-ignore
         const isSolved = block.permutation.getState("picross:solved");
-        minecraft.system.run(() => lib.BlockUtils.setState(block, { "picross:solved": !isSolved }));
+        lib.BlockUtils.setState(block, { "picross:solved": !isSolved });
     }
 
     /** 标记格子方块。会自动判断输入的方块是否为标准格子方块。 */
     setCellBlockMarked(block: minecraft.Block) {
         if (block.typeId !== CellBlockId) return;
-
-        // 放置标记格子方块
         lib.BlockUtils.set({ id: CellMarkedBlockId, location: block.location });
-
-        // 在游戏实例中应用更改
-        const { column, row } = this.getPicrossLocation(block.location);
-        this.game.markBlank(row, column);
-        lib.Debug.sendMessage(`§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aBLANK§7 状态`, "actionBar");
+        this.applyChangeToGameInstance(block.location, picross.CellState.Blank);
     }
 
     /** 取消标记格子方块。 */
     setCellBlockUnmarked(block: minecraft.Block) {
         if (block.typeId !== CellMarkedBlockId) return;
-
-        // 放置标记格子方块
         lib.BlockUtils.set({ id: CellBlockId, location: block.location });
-
-        // 在游戏实例中应用更改
-        const { column, row } = this.getPicrossLocation(block.location);
-        this.game.markUnknown(row, column);
-        lib.Debug.sendMessage(`§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aUNKNOWN§7 状态`, "actionBar");
+        this.applyChangeToGameInstance(block.location, picross.CellState.Unknown);
     }
 
     /** 玩家放置格子方块。 */
     placeCellBlock(location: minecraft.Vector3) {
-        // 在游戏实例中应用更改
-        const { column, row } = this.getPicrossLocation(location);
-        this.game.markUnknown(row, column);
-        lib.Debug.sendMessage(`§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aUNKNOWN§7 状态`, "actionBar");
-
-        // 获取谜题是否已被解决
-        const puzzleSolved = this.game.isSolved();
-        if (puzzleSolved) {
-            lib.Debug.sendMessage(
-                `§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aFILLED§7 状态\n§b谜题已被解开！`,
-                "actionBar",
-            );
-        }
+        this.applyChangeToGameInstance(location, picross.CellState.Unknown);
     }
 
     /** 玩家破坏格子方块。 */
     breakCellBlock(location: minecraft.Vector3) {
-        // 在游戏实例中应用更改
-        const { column, row } = this.getPicrossLocation(location);
-        this.game.markFilled(row, column);
-        lib.Debug.sendMessage(`§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aFILLED§7 状态`, "actionBar");
-
-        // 获取谜题是否已被解决
-        const puzzleSolved = this.game.isSolved();
-        if (puzzleSolved) {
-            lib.Debug.sendMessage(
-                `§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §aFILLED§7 状态\n§b谜题已被解开！`,
-                "actionBar",
-            );
-        }
+        this.applyChangeToGameInstance(location, picross.CellState.Filled);
     }
 
     // #endregion
@@ -287,13 +276,15 @@ class GameLevel extends Level {
 
 // #endregion
 
+// #region 组件
+
 class Components {
     /** 阻止玩家破坏方块。
      * @description 默认情况下，阻止任何破坏。
      * @description 允许开发者进行任意程度的破坏。
      * @description 允许玩家破坏格子方块。
      */
-    static preventPlayerBreakBlocks(level: GameLevel) {
+    static preventPlayerBreakBlocks(level: Level) {
         lib.gameSystem.subscribeEvent("preventPlayerBreakBlocks", minecraft.world.beforeEvents.playerBreakBlock, event => {
             const { block, player } = event;
             event.cancel = true;
@@ -316,7 +307,7 @@ class Components {
      * @description 允许玩家在规定高度放置格子方块。
      * @description 允许玩家和线索方块交互，并更新其状态。
      */
-    static interactionController(level: GameLevel) {
+    static interactionController(level: Level) {
         lib.gameSystem.subscribeEvent("preventPlayerPlaceBlocks", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
             const { player, itemStack: item, isFirstEvent, block } = event;
             if (!isFirstEvent) return;
@@ -328,7 +319,7 @@ class Components {
 
             // 允许玩家在规定高度放置格子方块
             const placeLocation = lib.BlockUtils.getPlaceLocation(event);
-            if (GameLevel.itemIsCellBlock(item?.typeId ?? "") && placeLocation.y === GameLevel.CellBlockY) {
+            if (Level.itemIsCellBlock(item?.typeId ?? "") && placeLocation.y === Level.CellBlockY) {
                 event.cancel = false;
                 minecraft.system.run(() => level.placeCellBlock(placeLocation));
             }
@@ -355,7 +346,12 @@ class Components {
     }
 }
 
+// #endregion
+
 minecraft.world.afterEvents.worldLoad.subscribe(event => {
+    const level = 10010;
+    const puzzle: picross.PuzzleDefinition | undefined = levels[level];
+    const options: picross.GameOptions | undefined = levels[level];
     // 当前存在问题：区块未完全加载会报错
-    new GameLevel(levels["10004"] as picross.PuzzleDefinition);
+    if (puzzle && options) new Level(puzzle, options);
 });

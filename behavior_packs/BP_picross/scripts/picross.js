@@ -574,6 +574,15 @@ export class PicrossGame {
         this.assertInBounds(0, column);
         return Array.from({ length: this.height }, (_, r) => this.stateAt(this.index(r, column)));
     }
+    /** 所有锁定格的坐标。 */
+    getLockedCells() {
+        return this.cells.flatMap((state, index) => {
+            if (state !== CellState.Locked)
+                return [];
+            const row = Math.floor(index / this.width);
+            return [{ row, column: index - row * this.width }];
+        });
+    }
     // #endregion
     // #region - 历史记录
     canUndo() {
