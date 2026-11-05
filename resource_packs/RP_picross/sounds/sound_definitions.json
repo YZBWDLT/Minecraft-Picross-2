@@ -1,0 +1,35 @@
+{
+    "format_version": "1.14.0",
+    "sound_definitions": {
+        "main_menu":{
+            "category": "music",
+            "sounds": [
+                {"name": "sounds/main_menu","volume": 0.6}
+            ]
+        },
+        "select_common_level":{
+            "category": "music",
+            "sounds": [
+                {"name": "sounds/select_common_level","volume": 0.6}
+            ]
+        },
+        "game_1":{
+            "category": "music",
+            "sounds": [
+                {"name": "sounds/game_1","volume": 0.6}
+            ]
+        },
+        "finish":{
+            "category": "music",
+            "sounds": [
+                {"name": "sounds/finish","volume": 0.6}
+            ]
+        },
+        "show_picture":{
+            "category": "music",
+            "sounds": [
+                {"name": "sounds/show_picture","volume": 0.6}
+            ]
+        }
+    }
+}
