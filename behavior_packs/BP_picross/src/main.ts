@@ -1,7 +1,7 @@
 import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
 import * as picross from "./picross";
-import { levels, picross1Levels } from "./levels";
+import { picross1Levels, type LevelData } from "./levels";
 
 // #region 调试
 
@@ -44,25 +44,18 @@ const PencilAndEraserId = "picross:pencil_and_eraser";
 /** 线索方块 ID 前缀，后面接 0~30。 */
 const NumberBlockPrefix = "picross:clue_block_";
 
-/** 面板出现动画的时间线 ID。正常播完由回调返回 false 自行终止，中途退关则按这个 ID 精准取消。 */
-const BoardAppearTimelineId = "level/boardAppear";
-
-/** 开场动画的时间线 ID。 */
-const StartAnimationTimelineId = "level/startAnimation";
-
-// #endregion
-
-// #region 系统
-
-/** Minecraft 数织系统。留作将来存放跨关卡的全局状态，目前还没有成员。 */
-class MinecraftPicrossSystem {}
+/** 点击即可切换完成状态的方块 tag。 */
+const ClueTags = ["picross:clue", "picross:arrow"];
 
 // #endregion
 
 // #region 设置
 
-interface StartAnimationSettings {
-    /** 是否启用开始动画。 */
+/** 开场与结束动画共用的设置。
+ * @description 两段动画都用同一套黑屏参数和相机高度，只是各自的展示时长不同。
+ */
+interface AnimationSettings {
+    /** 是否启用动画。关闭后开场直接铺盘，结束直接消除。 */
     enabled: boolean;
 
     /** 玩家镜头淡入黑屏的时长。单位：秒。 */
@@ -74,26 +67,41 @@ interface StartAnimationSettings {
     /** 玩家镜头淡出黑屏的时长。单位：秒。 */
     playerCameraFadeOutTime: number;
 
-    /** 盘面显示的动画时长。单位：秒。 */
+    /** 开场与结束动画中，盘面逐层显现或消除的时长。单位：秒。 */
     showCellAnimationTime: number;
 
-    /** 盘面持续时长。单位：秒。 */
+    /** 开场动画中，盘面显现后停留的时长。单位：秒。 */
     holdCellTime: number;
 
-    /** 盘面展示时，相机距地面的高度。 */
-    cameraHeight: number;
+    /** 结束动画中，盘面消除阶段的停留时长。单位：秒。
+     * @description 前 `showCellAnimationTime` 秒用于逐层消除，剩下的时间只是等着，
+     * 所以这个值小于 `showCellAnimationTime` 时会自动对齐后者。
+     */
+    holdEraseTime: number;
+
+    /** 结束动画中，图案显示后停留的时长。单位：秒。 */
+    holdFigureTime: number;
+
+    /** 俯视镜头的最大高度。 */
+    cameraMaxHeight: number;
+
+    /** 俯视镜头的最低高度。 */
+    cameraMinHeight: number;
 }
 
 export class Settings {
-    /** 开始动画设置。 */
-    startAnimation: StartAnimationSettings = {
+    /** 动画设置。开场与结束共用。 */
+    animation: AnimationSettings = {
         enabled: true,
         playerCameraFadeInTime: 0.25,
         playerCameraHoldTime: 0.5,
         playerCameraFadeOutTime: 0.25,
         showCellAnimationTime: 1,
         holdCellTime: 2,
-        cameraHeight: 35,
+        holdEraseTime: 4,
+        holdFigureTime: 8,
+        cameraMaxHeight: 35,
+        cameraMinHeight: 8,
     };
 }
 
@@ -126,8 +134,6 @@ const goldRush: Theme = {
 
 // #region 关卡
 
-class Menu {}
-
 /** 面板里的一行格子，整行可以一次填充。 */
 interface BoardRowRect {
     readonly row: number;
@@ -146,6 +152,12 @@ interface BoardRowClue extends BoardNumber {
     readonly row: number;
 }
 
+/** 一块矩形区域（含两端），用方块坐标表示。 */
+interface BoardRect {
+    readonly from: minecraft.Vector3;
+    readonly to: minecraft.Vector3;
+}
+
 /** 面板布局。纯计算的结果，不含任何世界写入。 */
 interface BoardLayout {
     /** 盘面左上角（第 0 行第 0 列）的坐标。 */
@@ -155,7 +167,10 @@ interface BoardLayout {
     readonly cellCenter: minecraft.Vector3;
 
     /** 整个盘面的矩形，用于一次性铺满。 */
-    readonly boardRect: { readonly from: minecraft.Vector3; readonly to: minecraft.Vector3 };
+    readonly boardRect: BoardRect;
+
+    /** 整块面板（含线索区）的矩形，用于开场取景。 */
+    readonly panelRect: BoardRect;
 
     /** 每行的格子矩形，用于逐行填充。 */
     readonly rowRects: BoardRowRect[];
@@ -169,19 +184,29 @@ interface BoardLayout {
 
 /** 代表一个游戏关卡。 */
 class Level {
-    constructor(puzzle: picross.PuzzleDefinition, options?: picross.GameOptions) {
-        this.game = new picross.PicrossGame(puzzle, options);
+    constructor(data: LevelData) {
+        this.game = new picross.PicrossGame(data, data);
+        this.figureStructureId = data.figureStructureId;
         this.start();
     }
 
     /** 代表本关使用的数织实例。 */
     game: picross.PicrossGame;
 
-    /** 代表本关左上角的格子方块的起始点，根据此坐标点计算玩家挖掉的方块位于盘面的何坐标下。 */
+    /** 通关后展示的图案结构 ID。 */
+    figureStructureId: string | undefined;
+
+    /** 本关的布局。 */
+    layout: BoardLayout | undefined;
+
+    /** 代表本关左上角的格子方块的起始点。 */
     startLocation: minecraft.Vector3 = { x: 0, y: 0, z: 0 };
 
-    /** 面板是否已完整出现。动画播放期间为 `false`，此时屏蔽玩家操作。 */
-    boardReady = false;
+    /** 面板是否可操作。 */
+    boardOperable = false;
+
+    /** 关卡是否已结束。 */
+    finished = false;
 
     // #region - 启动与退场
 
@@ -198,13 +223,19 @@ class Level {
             this.fail(cause);
             return;
         }
+        this.layout = layout;
 
-        if (settings.startAnimation.enabled) this.playStartAnimation(layout);
+        if (settings.animation.enabled) this.playStartAnimation(layout);
         else
             this.loadScene().then(
                 () => this.placeBoard(layout),
                 cause => this.fail(cause),
             );
+
+        // 播放音乐
+        lib.PlayerUtils.getAll().forEach(player => {
+            player.playMusic("normal_1", { loop: true });
+        });
     }
 
     /** 离开关卡。 */
@@ -220,7 +251,7 @@ class Level {
      */
     private fail(cause: unknown) {
         minecraft.world.sendMessage(`§c关卡启动失败：${String(cause)}`);
-        this.boardReady = true;
+        this.boardOperable = true;
         lib.PlayerUtils.unlockPlayers();
     }
 
@@ -238,67 +269,33 @@ class Level {
 
     // #region - 开场动画
 
-    /** 秒换算成游戏刻。基岩版每秒 20 刻。 */
-    private static toTicks(seconds: number): number {
-        return Math.max(0, Math.round(seconds * 20));
-    }
-
-    /** 玩家在棋盘上的站位：棋盘中心的南侧一格，脚下正好踩在格子方块上。 */
-    private static getViewpoint(layout: BoardLayout): minecraft.Vector3 {
-        return { x: layout.cellCenter.x, y: layout.cellCenter.y + 1, z: layout.boardRect.to.z + 1 };
-    }
-
     /** 播放开场动画：黑屏 → 架镜头看场地升起 → 盘面逐层出现 → 交还操作。 */
     private playStartAnimation(layout: BoardLayout) {
-        const animation = settings.startAnimation;
+        const animation = settings.animation;
         const players = lib.PlayerUtils.getAll();
 
         // 各阶段的边界先换算成 tick，后面判断时就不必反复累加秒数。
         // 淡入至少留 1 tick，否则时长为 0 时 `time === fadeInTicks` 永远不成立。
-        const fadeInTicks = Math.max(1, Level.toTicks(animation.playerCameraFadeInTime));
-        const holdTicks = Level.toTicks(animation.playerCameraHoldTime);
-        const fadeOutTicks = Level.toTicks(animation.playerCameraFadeOutTime);
-        const boardTicks = fadeInTicks + holdTicks + fadeOutTicks;
-        const endTicks = boardTicks + Level.toTicks(animation.showCellAnimationTime) + Level.toTicks(animation.holdCellTime);
+        const fadeInTicks = Math.max(1, Math.round(animation.playerCameraFadeInTime * 20));
+        const holdTicks = Math.round(animation.playerCameraHoldTime * 20);
+        const fadeOutTicks = Math.round(animation.playerCameraFadeOutTime * 20);
+        const blackoutTicks = fadeInTicks + holdTicks + fadeOutTicks;
+        const endTicks = blackoutTicks + Math.round(animation.showCellAnimationTime * 20) + Math.round(animation.holdCellTime * 20);
 
-        players.forEach(player => {
-            player.camera.fade({
-                fadeTime: {
-                    fadeInTime: animation.playerCameraFadeInTime,
-                    holdTime: animation.playerCameraHoldTime,
-                    fadeOutTime: animation.playerCameraFadeOutTime,
-                },
-            });
-        });
-
-        const started = lib.gameSystem.subscribeTimeline(StartAnimationTimelineId, time => {
-            // 屏幕完全变黑的一刻：场地开始升起，镜头架到盘面正上方
+        this.fadeCamera(players);
+        const started = lib.gameSystem.subscribeTimeline("startAnimation", time => {
+            // 屏幕完全变黑，重置场地，镜头架到盘面正上方，锁定玩家
             if (time === fadeInTicks) {
-                void this.loadScene((holdTicks + fadeOutTicks) / 20).catch(cause => this.fail(cause));
-                players.forEach(player => {
-                    player.camera.setCamera("minecraft:free", {
-                        location: { ...goldRush.boardCenter, y: goldRush.boardCenter.y + animation.cameraHeight },
-                        rotation: { x: 89.9, y: 180 },
-                    });
-                    // 趁黑屏把玩家挪到棋盘南侧，镜头交还时人已经站好了
-                    player.teleport(Level.getViewpoint(layout), { rotation: { x: 0, y: 180 } });
-                });
+                this.loadScene((holdTicks + fadeOutTicks) / 20).catch(cause => this.fail(cause));
+                this.movePlayersToOverhead(players, layout, Level.getPanelCenter(layout), layout.panelRect);
                 lib.PlayerUtils.lockPlayers();
             }
-
-            // 淡出结束：场地已就位，开始铺盘面。
-            // 不写 return，这样淡入与持续时长为 0 导致两个时间点重合时也能同 tick 跑完。
-            if (time === boardTicks) {
-                this.placeBoard(layout);
-            }
-
-            // 展示够了，把镜头和操作交还玩家。
-            // 这里再传送一次：开场时场地还没升起，玩家会往下掉，落地位置不一定在棋盘上。
-            // 和 camera.clear() 放在同一 tick，玩家看到的是"镜头切回来人已经站好了"。
-            if (time >= endTicks) {
-                players.forEach(player => {
-                    player.teleport(Level.getViewpoint(layout), { rotation: { x: 0, y: 180 } });
-                });
+            // 淡出结束后，开始铺盘面
+            else if (time === blackoutTicks) this.placeBoard(layout);
+            // 铺完盘面后，等待一段时间再恢复玩家操作
+            else if (time >= endTicks) {
+                // 再传送一次：开场时场地还没升起，玩家会往下掉，落点不一定在棋盘上
+                players.forEach(player => player.teleport(Level.getViewpoint(layout), { rotation: { x: 0, y: 180 } }));
                 lib.PlayerUtils.unlockPlayers();
                 return false;
             }
@@ -309,7 +306,303 @@ class Level {
 
     // #endregion
 
+    // #region - 结束动画
+
+    /** 谜题完成后调用。重复触发只生效一次。 */
+    private finish() {
+        if (this.finished) return;
+        this.finished = true;
+
+        // 立刻掐掉盘面操作，后面整段动画期间玩家都碰不到格子
+        this.boardOperable = false;
+
+        try {
+            if (settings.animation.enabled) this.playFinishAnimation();
+            else this.playFinishAnimationInstant();
+        } catch (cause) {
+            // 擦除或架镜头出错时别把玩家留在锁定状态
+            this.fail(cause);
+        }
+
+        // 播放音乐
+        lib.PlayerUtils.getAll().forEach(player => {
+            player.playMusic("finish", { loop: true });
+        });
+    }
+
+    /** 结束动画（开启动画时）：黑屏 → 俯视盘面 → 逐层擦除 → 展示图案与关卡名 → 黑屏重置场地。 */
+    private playFinishAnimation() {
+        const layout = this.layout;
+        if (layout === undefined) return;
+
+        const animation = settings.animation;
+        const dimension = minecraft.world.getDimension("overworld");
+        const players = lib.PlayerUtils.getAll();
+        const eraseSteps = this.createEraseSteps(layout, dimension);
+
+        const fadeInTicks = Math.max(1, Math.round(animation.playerCameraFadeInTime * 20));
+        const holdTicks = Math.round(animation.playerCameraHoldTime * 20);
+        const fadeOutTicks = Math.round(animation.playerCameraFadeOutTime * 20);
+        const blackoutTicks = fadeInTicks + holdTicks + fadeOutTicks;
+        const eraseTicks = Math.max(1, Math.round(animation.showCellAnimationTime * 20));
+        const eraseEndTicks = blackoutTicks + eraseTicks - 1;
+        const figureTicks = blackoutTicks + Math.max(eraseTicks, Math.round(animation.holdEraseTime * 20));
+        const resetTicks = figureTicks + Math.round(animation.holdFigureTime * 20);
+        const reloadTicks = resetTicks + fadeInTicks;
+        const unlockTicks = resetTicks + fadeInTicks + holdTicks;
+
+        // 逐层擦除用累积速率推进，和开场动画同一套算法
+        const eraseRate = eraseSteps.length > 1 && eraseTicks > 1 ? (eraseSteps.length - 1) / (eraseTicks - 1) : eraseSteps.length;
+        let eraseAccumulator = 1;
+        let eraseIndex = 0;
+
+        this.fadeCamera(players);
+
+        const started = lib.gameSystem.subscribeTimeline("finishAnimation", time => {
+            try {
+                // 完全黑屏后，调整玩家视角，锁定玩家
+                if (time === fadeInTicks) {
+                    this.movePlayersToOverhead(players, layout, Level.getCellCenter(layout), layout.boardRect);
+                    lib.PlayerUtils.lockPlayers();
+                }
+                // 黑屏淡出后，逐步擦除数字和标记格子方块
+                if (time >= blackoutTicks && time <= eraseEndTicks) {
+                    eraseAccumulator += eraseRate;
+                    while (eraseAccumulator >= 1 && eraseIndex < eraseSteps.length) {
+                        eraseSteps[eraseIndex++]?.();
+                        eraseAccumulator -= 1;
+                    }
+                }
+                // 显示图案和关卡名称
+                if (time === figureTicks) {
+                    while (eraseIndex < eraseSteps.length) eraseSteps[eraseIndex++]?.();
+                    this.showFinish(layout, players);
+
+                    // 播放音乐
+                    lib.PlayerUtils.getAll().forEach(player => {
+                        player.playMusic("show", { loop: false });
+                    });
+                }
+
+                // 动作栏文字会自己淡出，所以每秒补一次
+                if (time > figureTicks && time < resetTicks && time % 20 === 0) {
+                    this.showLevelNameToAll(players);
+                }
+
+                // 离开时开始黑屏，清除动作栏文字
+                if (time === resetTicks) {
+                    Level.clearLevelName(players);
+                    this.fadeCamera(players);
+                }
+
+                // 黑屏后，重置场地
+                if (time === reloadTicks) this.loadScene(holdTicks / 20).catch(cause => this.fail(cause));
+
+                // 淡出开始前，解锁玩家并终止运行
+                if (time >= unlockTicks) {
+                    lib.PlayerUtils.unlockPlayers();
+                    return false;
+                }
+            } catch (cause) {
+                minecraft.world.sendMessage(`§c结束动画出错：${String(cause)}`);
+            }
+        });
+
+        if (!started) this.fail(new Error("结束动画的时间线已被占用"));
+    }
+
+    /** 结束流程（关闭动画时）：不黑屏，立刻完成擦除，只保留两段停留。 */
+    private playFinishAnimationInstant() {
+        const layout = this.layout;
+        if (layout === undefined) return;
+
+        const animation = settings.animation;
+        const dimension = minecraft.world.getDimension("overworld");
+        const players = lib.PlayerUtils.getAll();
+
+        // 立刻挪人、架镜头、锁操作。和开启动画时一样，只对准格子区。
+        this.movePlayersToOverhead(players, layout, Level.getCellCenter(layout), layout.boardRect);
+        lib.PlayerUtils.lockPlayers();
+
+        // 擦除不逐层推进，一口气做完
+        for (const step of this.createEraseSteps(layout, dimension)) step();
+
+        const figureTicks = Math.max(1, Math.round(animation.holdEraseTime * 20));
+
+        // 图案瞬间出现，holdFigureTime 就是完整图案的可见时长
+        const endTicks = figureTicks + Math.round(animation.holdFigureTime * 20);
+
+        const started = lib.gameSystem.subscribeTimeline("finishAnimation", time => {
+            // 和开启动画时同样的理由：异常不能让时间线停摆
+            try {
+                if (time === figureTicks) this.showFinish(layout, players);
+
+                if (time > figureTicks && time < endTicks && time % 20 === 0) {
+                    this.showLevelNameToAll(players);
+                }
+
+                if (time >= endTicks) {
+                    Level.clearLevelName(players);
+                    // 等场地铺完再解锁，免得玩家站在还没恢复的地面上
+                    this.loadScene().then(
+                        () => lib.PlayerUtils.unlockPlayers(),
+                        cause => this.fail(cause),
+                    );
+                    return false;
+                }
+            } catch (cause) {
+                minecraft.world.sendMessage(`§c结束动画出错：${String(cause)}`);
+            }
+        });
+
+        if (!started) this.fail(new Error("结束动画的时间线已被占用"));
+    }
+
+    /** 把「擦掉盘面」切成一帧帧：从面板最上边一路扫到棋盘底边。
+     * @description 每一层清掉该层的线索方块；落在棋盘范围内的层，顺便把标记格和锁定格还原成普通格子。
+     */
+    private createEraseSteps(layout: BoardLayout, dimension: minecraft.Dimension): (() => void)[] {
+        const steps: (() => void)[] = [];
+
+        // 线索按 z 收拢，同一层的列线索和行线索会一起消失
+        const clueLayers = Level.groupByZ([...layout.rowClues, ...layout.columnClues]);
+
+        const boardTop = layout.boardRect.from.z;
+        const boardBottom = layout.boardRect.to.z;
+
+        // 从最上面一层线索开始扫
+        let top = boardTop;
+        for (const z of clueLayers.keys()) top = Math.min(top, z);
+
+        for (let z = top; z <= boardBottom; z++) {
+            const clues = clueLayers.get(z);
+            const rowRect = layout.rowRects[z - boardTop];
+
+            steps.push(() => {
+                // 这一层的线索方块清成空气
+                if (clues !== undefined) {
+                    for (const clue of clues) dimension.setBlockType(clue.location, "minecraft:air");
+                }
+
+                // 棋盘行：把标记格和锁定格还原成普通格子，已挖开的空气保持不动
+                if (rowRect === undefined) return;
+                for (let x = rowRect.from.x; x <= rowRect.to.x; x++) {
+                    const location = { x, y: rowRect.from.y, z: rowRect.from.z };
+                    const block = dimension.getBlock(location);
+                    if (block === undefined) continue;
+                    if (block.typeId === CellMarkedBlockId || block.typeId === CellLockedBlockId) {
+                        dimension.setBlockType(location, CellBlockId);
+                    }
+                }
+            });
+        }
+
+        return steps;
+    }
+
+    /** 在盘面左上角加载通关图案。图案不做生长动画，放下就是完整的。
+     * @description `structureManager.place` 是同步抛错的，所以除了 `.catch` 还得再包一层 try，
+     * 不然异常会从时间线回调里逃出去，把整段动画卡死。
+     */
+    private showFigure(layout: BoardLayout) {
+        if (this.figureStructureId === undefined) return;
+        try {
+            lib.StructureUtils.placeAsync(this.figureStructureId, layout.startLocation).catch(cause =>
+                minecraft.world.sendMessage(`§c通关图案加载失败：${String(cause)}`),
+            );
+        } catch (cause) {
+            minecraft.world.sendMessage(`§c通关图案加载失败：${String(cause)}`);
+        }
+    }
+
+    /** 图案登场：在盘面左上角放图案，并在动作栏显示关卡名。 */
+    private showFinish(layout: BoardLayout, players: minecraft.Player[]) {
+        this.showFigure(layout);
+        this.showLevelNameToAll(players);
+    }
+
+    /** 在动作栏显示关卡名。名字是翻译键，交给 RawMessage 按语言解析。
+     * @description 动作栏不会挡住盘面和图案；它的文字会自己淡出，所以停留期间由调用方按秒补发。
+     */
+    private showLevelNameToAll(players: minecraft.Player[]) {
+        const name = this.game.name;
+        if (name.length === 0) return;
+
+        players.forEach(player => {
+            try {
+                player.onScreenDisplay.setActionBar({ rawtext: [{ translate: name }] });
+            } catch (cause) {
+                minecraft.world.sendMessage(`§c关卡名显示失败：${String(cause)}`);
+            }
+        });
+    }
+
+    /** 清掉动作栏上的关卡名。 */
+    private static clearLevelName(players: minecraft.Player[]) {
+        players.forEach(player => player.onScreenDisplay.setActionBar(""));
+    }
+
+    /** 给这些玩家播一次黑屏淡入淡出，时长取自动画设置。 */
+    private fadeCamera(players: minecraft.Player[]) {
+        const animation = settings.animation;
+        const fadeTime = {
+            fadeInTime: animation.playerCameraFadeInTime,
+            holdTime: animation.playerCameraHoldTime,
+            fadeOutTime: animation.playerCameraFadeOutTime,
+        };
+        players.forEach(player => player.camera.fade({ fadeTime }));
+    }
+
+    // #endregion
+
     // #region - 通用
+
+    /** 玩家在棋盘上的站位：棋盘中心的南侧一格，脚下正好踩在格子方块上。
+     * @description 坐标加 0.5 才是格子的几何中心；直接用整数会站在方块边角上，看着偏。
+     */
+    private static getViewpoint(layout: BoardLayout): minecraft.Vector3 {
+        return { x: layout.cellCenter.x + 0.5, y: layout.cellCenter.y + 1, z: layout.boardRect.to.z + 1.5 };
+    }
+
+    /** 格子区的几何中心。开场用不到它，结束展示图案时用它取景。 */
+    private static getCellCenter(layout: BoardLayout): minecraft.Vector3 {
+        return { x: layout.cellCenter.x + 0.5, y: layout.cellCenter.y, z: layout.cellCenter.z + 0.5 };
+    }
+
+    /** 整块面板（含线索区）的几何中心。开场展示盘面时用它取景。 */
+    private static getPanelCenter(layout: BoardLayout): minecraft.Vector3 {
+        const panel = layout.panelRect;
+        // from 是起始方块坐标，to 是结束方块坐标，方块跨 [from, to + 1)，所以几何中心是 (from + to + 1) / 2
+        return {
+            x: (panel.from.x + panel.to.x + 1) / 2,
+            y: layout.cellCenter.y,
+            z: (panel.from.z + panel.to.z + 1) / 2,
+        };
+    }
+
+    /** 俯视镜头的高度：盘面小时自动拉近，盘面大时拉远，上限是设置里的 `cameraMaxHeight`。
+     * @param center 镜头对准的中心，必须是几何中心。
+     * @param rect 需要完整收进画面的区域，按「中心到最远边」的距离算。
+     */
+    private static getCameraHeight(center: minecraft.Vector3, rect: BoardRect): number {
+        const halfSpan = Math.max(center.x - rect.from.x, rect.to.x + 1 - center.x, center.z - rect.from.z, rect.to.z + 1 - center.z);
+        /** 俯视镜头的高度系数。竖直视角约 70°，半幅高度 ≈ 0.7 × 高度，这里取 2 倍再加一点余量。 */
+        const CameraFitFactor = 2;
+        const fitted = Math.ceil(halfSpan * CameraFitFactor);
+        return Math.min(settings.animation.cameraMaxHeight, Math.max(settings.animation.cameraMinHeight, fitted));
+    }
+
+    /** 把玩家挪到棋盘南侧，并把镜头架到指定中心的正上方。开场与结束动画共用。
+     * @param center 镜头对准的几何中心：开场是整块面板的中心，结束是格子区的中心。
+     * @param rect 镜头要完整收进画面的区域，一般和 center 对应。
+     */
+    private movePlayersToOverhead(players: minecraft.Player[], layout: BoardLayout, center: minecraft.Vector3, rect: BoardRect) {
+        const cameraLocation = { ...center, y: center.y + Level.getCameraHeight(center, rect) };
+        players.forEach(player => {
+            player.teleport(Level.getViewpoint(layout), { rotation: { x: 0, y: 180 } });
+            player.camera.setCamera("minecraft:free", { location: cameraLocation, rotation: { x: 89.9, y: 180 } });
+        });
+    }
 
     /** 是否为格子方块。 */
     static itemIsCellBlock(typeId: string): boolean {
@@ -327,13 +620,15 @@ class Level {
         return { column: location.x - this.startLocation.x, row: location.z - this.startLocation.z };
     }
 
-    /** 将 Picross 行列坐标转换为 Minecraft 游戏实例的坐标。 */
-    getMinecraftLocation(position: picross.CellPos): minecraft.Vector3 {
-        return {
-            x: position.column + this.startLocation.x,
-            y: goldRush.boardCenter.y,
-            z: position.row + this.startLocation.z,
-        };
+    /** 按 z 把方块分层，同一层的会一起出现或一起消失。 */
+    private static groupByZ<T extends { readonly location: minecraft.Vector3 }>(items: readonly T[]): Map<number, T[]> {
+        const layers = new Map<number, T[]>();
+        for (const item of items) {
+            const layer = layers.get(item.location.z);
+            if (layer === undefined) layers.set(item.location.z, [item]);
+            else layer.push(item);
+        }
+        return layers;
     }
 
     // #endregion
@@ -341,26 +636,25 @@ class Level {
     // #region - 场地放置
 
     /** 放置数织面板，并把盘面左上角写入 startLocation。
-     * @param layout 已经算好的布局；不传则现算一次。
+     * @param layout 已经算好的布局。
      * @description 任何一步出错都交给 `fail` 统一善后，避免玩家被留在黑屏且不能动的状态里。
      */
-    placeBoard(layout?: BoardLayout) {
+    placeBoard(layout: BoardLayout) {
         try {
-            const resolved = layout ?? this.getBoardLayout();
-            this.startLocation = resolved.startLocation;
+            this.startLocation = layout.startLocation;
 
             const dimension = minecraft.world.getDimension("overworld");
 
             // 不播开场动画时一次性铺满
-            if (!settings.startAnimation.enabled) {
-                this.renderBoardInstant(resolved, dimension);
-                this.boardReady = true;
+            if (!settings.animation.enabled) {
+                this.renderBoardInstant(layout, dimension);
+                this.boardOperable = true;
                 return;
             }
 
-            const steps = this.createRenderSteps(resolved, dimension);
-            const cellTicks = Level.toTicks(settings.startAnimation.showCellAnimationTime);
-            this.playRenderSteps(steps, cellTicks, () => this.renderBoardInstant(resolved, dimension));
+            const steps = this.createRenderSteps(layout, dimension);
+            const cellTicks = Math.round(settings.animation.showCellAnimationTime * 20);
+            this.playRenderSteps(steps, cellTicks, () => this.renderBoardInstant(layout, dimension));
         } catch (cause) {
             this.fail(cause);
         }
@@ -379,10 +673,8 @@ class Level {
         const columns = columnClues.map(clue => (clue.length === 0 ? [0] : clue));
 
         // 线索区大小取所有行列里最宽的那一条
-        let clueColumns = 0;
-        for (const clue of rows) clueColumns = Math.max(clueColumns, clue.length);
-        let clueRows = 0;
-        for (const clue of columns) clueRows = Math.max(clueRows, clue.length);
+        const clueColumns = Math.max(...rows.map(clue => clue.length));
+        const clueRows = Math.max(...columns.map(clue => clue.length));
 
         const panelWidth = width + clueColumns;
         const panelHeight = height + clueRows;
@@ -445,6 +737,10 @@ class Level {
             startLocation: { x: boardX, y: cellY, z: boardZ },
             cellCenter: { x: boardX + (width - 1) / 2, y: cellY, z: boardZ + (height - 1) / 2 },
             boardRect: { from: { x: boardX, y: cellY, z: boardZ }, to: { x: boardX + width - 1, y: cellY, z: boardZ + height - 1 } },
+            panelRect: {
+                from: { x: boardX - clueColumns, y: cellY, z: boardZ - clueRows },
+                to: { x: boardX + width - 1, y: cellY, z: boardZ + height - 1 },
+            },
             rowRects,
             rowClues: rowClueList,
             columnClues: columnClueList,
@@ -477,12 +773,7 @@ class Level {
         };
 
         // 列线索先按层出现：从面板最上边一路扫到棋盘顶边
-        const clueLayers = new Map<number, BoardNumber[]>();
-        for (const clue of layout.columnClues) {
-            const layer = clueLayers.get(clue.location.z);
-            if (layer === undefined) clueLayers.set(clue.location.z, [clue]);
-            else layer.push(clue);
-        }
+        const clueLayers = Level.groupByZ(layout.columnClues);
         for (const z of [...clueLayers.keys()].sort((left, right) => left - right)) {
             const layer = clueLayers.get(z);
             steps.push(() => {
@@ -514,7 +805,7 @@ class Level {
      */
     private playRenderSteps(steps: (() => void)[], targetTicks: number, fallback: () => void) {
         const frames = steps.length;
-        const ticks = Math.max(1, Math.floor(targetTicks));
+        const ticks = Math.max(1, targetTicks);
 
         // 首帧立刻出现，其余帧在剩下的 tick 里匀速铺开。
         // 只用"每 tick 固定刷几帧"撑不到长时长：5×5 才 7 帧，一 tick 一帧也只能拖到 7 tick。
@@ -522,7 +813,7 @@ class Level {
         let accumulator = 1;
         let index = 0;
 
-        const started = lib.gameSystem.subscribeTimeline(BoardAppearTimelineId, () => {
+        const started = lib.gameSystem.subscribeTimeline("boardAppear", () => {
             try {
                 accumulator += rate;
                 while (accumulator >= 1 && index < frames) {
@@ -535,7 +826,7 @@ class Level {
             }
 
             if (index >= frames) {
-                this.boardReady = true;
+                this.boardOperable = true;
                 return false;
             }
         });
@@ -544,7 +835,7 @@ class Level {
             // 同名时间线已存在（例如上一关没退干净），直接铺满，免得盘面永远出不来
             minecraft.world.sendMessage("§e面板出现动画未能启动，已改为直接铺满");
             fallback();
-            this.boardReady = true;
+            this.boardOperable = true;
         }
     }
 
@@ -578,8 +869,9 @@ class Level {
         else if (state === picross.CellState.Filled) this.game.markFilled(row, column);
         else if (state === picross.CellState.Unknown) this.game.markUnknown(row, column);
 
-        // 检查谜题是否已解决
+        // 检查谜题是否已解决，解开就进入结束流程
         const puzzleSolved = this.game.isSolved();
+        if (puzzleSolved) this.finish();
 
         // 调试用
         let debugMessage = `§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §a${state}§7 状态`;
@@ -643,12 +935,11 @@ class Components {
         lib.gameSystem.subscribeEvent("preventPlayerBreakBlocks", minecraft.world.beforeEvents.playerBreakBlock, event => {
             const { block, player } = event;
 
-            // 先默认拦下一切破坏，下面按需放行
-            event.cancel = true;
-            if (player.hasTag("picross:developer")) event.cancel = false;
+            // 先默认拦下一切破坏，开发者不受限制
+            event.cancel = !player.hasTag("picross:developer");
 
-            // 面板还没出全时不允许破坏格子，否则玩家会在半成品盘面上操作
-            if (!level.boardReady) return;
+            // 面板不可操作时（还没出全 / 已结算）不允许破坏，避免玩家在半成品盘面或结算过程中操作
+            if (!level.boardOperable) return;
 
             // 棋盘格是唯一的例外：挖掉就等于填涂
             if (block.hasTag(CellBlockId)) {
@@ -713,12 +1004,11 @@ class Components {
         lib.gameSystem.subscribeEvent("preventPlayerPlaceBlocks", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
             const { player, itemStack: item, isFirstEvent, block } = event;
 
-            // 先默认拦下一切交互，下面按需逐项放行
-            event.cancel = true;
-            if (player.hasTag("picross:developer")) event.cancel = false;
+            // 先默认拦下一切交互，开发者不受限制
+            event.cancel = !player.hasTag("picross:developer");
 
-            // 面板还没出全时屏蔽一切交互，避免玩家对着半成品盘面操作
-            if (!level.boardReady) return;
+            // 面板不可操作时（还没出全 / 已结算）屏蔽一切交互
+            if (!level.boardOperable) return;
 
             // 新的一轮按下：清掉上一轮的记录，这样松开重按同一格、换一种模式都仍然生效
             if (isFirstEvent) {
@@ -739,8 +1029,7 @@ class Components {
             }
 
             // ② 线索与箭头：点一下切换一次完成状态
-            const clueTags = ["picross:clue", "picross:arrow"];
-            if (clueTags.some(clueTag => block.hasTag(clueTag))) {
+            if (ClueTags.some(clueTag => block.hasTag(clueTag))) {
                 if (alreadyHandled(player, block.location)) return;
                 minecraft.system.run(() => level.changeClueAndArrowBlockState(block));
                 return;
@@ -779,14 +1068,14 @@ class Components {
 
 // #endregion
 
-minecraft.world.afterEvents.worldLoad.subscribe(event => {
-    const level = 6;
+// #region 入口
 
-    // 调试用
-    // @ts-ignore
-    const puzzle: picross.PuzzleDefinition = picross1Levels["chapter1"][level];
-    // @ts-ignore
-    const options: picross.GameOptions = picross1Levels["chapter1"][level];
+minecraft.world.afterEvents.worldLoad.subscribe(() => {
+    // 调试用：直接进第 1 章第 index 关，之后换成选关界面
+    const index = 3;
+    const data: LevelData | undefined = picross1Levels["chapter1"]?.[index];
     // 当前存在问题：区块未完全加载会报错
-    if (puzzle && options) new Level(puzzle, options);
+    if (data !== undefined) new Level(data);
 });
+
+// #endregion
