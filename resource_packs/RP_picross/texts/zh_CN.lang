@@ -1,10 +1,28 @@
+## ===== 物品 =====
+
+item.picross:pencil=铅笔
+item.picross:eraser=橡皮
+item.picross:pencil_and_eraser=铅笔和橡皮
+
+## ===== 方块 =====
+
+### 帮助
 tile.picross:help_yes.name=对
 tile.picross:help_no.name=错
-tile.picross:arrow.name=箭头
-tile.picross:arrow_gap.name=间隔箭头
-tile.picross:arrow_random.name=随机箭头
-tile.picross:arrow_wide_left.name=宽箭头左
-tile.picross:arrow_wide_right.name=宽箭头右
+
+### 箭头方块
+tile.picross:arrow.name=箭头方块
+tile.picross:arrow_gap.name=间隔箭头方块
+tile.picross:arrow_random.name=随机箭头方块
+tile.picross:arrow_wide_left.name=宽箭头方块左
+tile.picross:arrow_wide_right.name=宽箭头方块右
+
+### 格子方块
+tile.picross:cell_block.name=格子方块
+tile.picross:marked_cell_block.name=标记的格子方块
+tile.picross:locked_cell_block.name=锁定标记的格子方块
+
+### 线索方块
 tile.picross:clue_block_0.name=线索方块 0
 tile.picross:clue_block_1.name=线索方块 1
 tile.picross:clue_block_2.name=线索方块 2
@@ -36,6 +54,8 @@ tile.picross:clue_block_27.name=线索方块 27
 tile.picross:clue_block_28.name=线索方块 28
 tile.picross:clue_block_29.name=线索方块 29
 tile.picross:clue_block_30.name=线索方块 30
+
+### 间隔线索方块
 tile.picross:gap_clue_block_0.name=间隔线索方块 0
 tile.picross:gap_clue_block_1.name=间隔线索方块 1
 tile.picross:gap_clue_block_2.name=间隔线索方块 2
@@ -67,6 +87,8 @@ tile.picross:gap_clue_block_27.name=间隔线索方块 27
 tile.picross:gap_clue_block_28.name=间隔线索方块 28
 tile.picross:gap_clue_block_29.name=间隔线索方块 29
 tile.picross:gap_clue_block_30.name=间隔线索方块 30
+
+### 宽线索方块
 tile.picross:wide_left_clue_block_0.name=宽线索方块左 0
 tile.picross:wide_left_clue_block_1.name=宽线索方块左 1
 tile.picross:wide_left_clue_block_2.name=宽线索方块左 2
@@ -101,6 +123,8 @@ tile.picross:wide_down_clue_block_6.name=宽线索方块下 6
 tile.picross:wide_down_clue_block_7.name=宽线索方块下 7
 tile.picross:wide_down_clue_block_8.name=宽线索方块下 8
 tile.picross:wide_down_clue_block_9.name=宽线索方块下 9
+
+### 雷达线索方块
 tile.picross:radar_clue_block_0000.name=雷达线索方块 0_0_0_0
 tile.picross:radar_clue_block_1000.name=雷达线索方块 左上_0_0_0
 tile.picross:radar_clue_block_0100.name=雷达线索方块 0_右上_0_0
@@ -117,6 +141,9 @@ tile.picross:radar_clue_block_0011.name=雷达线索方块 0_0_左下_右下
 tile.picross:radar_clue_block_1011.name=雷达线索方块 左上_0_左下_右下
 tile.picross:radar_clue_block_0111.name=雷达线索方块 0_右上_左下_右下
 tile.picross:radar_clue_block_1111.name=雷达线索方块 左上_右上_左下_右下
+
+## ===== 物品组 =====
+
 picross:sign.name=标记
 picross:clue_block.name=线索方块
 picross:gap_clue_block.name=间隔线索方块
@@ -125,11 +152,15 @@ picross:wide_right_clue_block.name=宽线索方块右
 picross:wide_up_clue_block.name=宽线索方块上
 picross:wide_down_clue_block.name=宽线索方块下
 picross:radar_clue_block.name=雷达线索方块
-tile.picross:cell_block.name=格子方块
-tile.picross:marked_cell_block.name=标记的格子方块
-tile.picross:locked_cell_block.name=锁定标记的格子方块
 picross:cell_block.name=格子方块
-item.picross:pencil=铅笔
-item.picross:eraser=橡皮
-item.picross:pencil_and_eraser=铅笔和橡皮
 picross:tool.name=工具
+
+## ===== 关卡名 =====
+
+### Picross 1 的关卡
+levelName.picross1Levels.1-1=§a苦力怕
+levelName.picross1Levels.1-2=§6电源
+levelName.picross1Levels.1-3=字母“G”
+levelName.picross1Levels.1-4=§6箱子
+levelName.picross1Levels.1-5=§93D§c眼镜
+levelName.picross1Levels.1-6=§b汽车
