@@ -1,0 +1,53 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:entity": {
+        "description": {
+            "identifier": "picross:button",
+            "is_spawnable": false,
+            "is_summonable": true,
+            "properties": {
+                "picross:type": {
+                    "type": "enum",
+                    "values": ["start_game", "mini_game", "mosaic", "theme", "custom_mode", "settings"],
+                    "default": "start_game",
+                    "client_sync": true
+                },
+                "picross:focused": { "type": "bool", "default": false, "client_sync": true }
+            }
+        },
+        "components": {
+            "minecraft:collision_box": { "height": 0, "width": 0 },
+            "minecraft:physics": {},
+            "minecraft:damage_sensor": {
+                "triggers": [{ "cause": "all", "deals_damage": "no" }]
+            },
+            "minecraft:pushable": { "is_pushable": false, "is_pushable_by_piston": false }
+        },
+        "events": {
+            "picross:change_to_start_game": {
+                "set_property": { "picross:type": "start_game" }
+            },
+            "picross:change_to_mini_game": {
+                "set_property": { "picross:type": "mini_game" }
+            },
+            "picross:change_to_mosaic": {
+                "set_property": { "picross:type": "mosaic" }
+            },
+            "picross:change_to_custom_mode": {
+                "set_property": { "picross:type": "custom_mode" }
+            },
+            "picross:change_to_theme": {
+                "set_property": { "picross:type": "theme" }
+            },
+            "picross:change_to_settings": {
+                "set_property": { "picross:type": "settings" }
+            },
+            "picross:focus": {
+                "set_property": { "picross:focused": true }
+            },
+            "picross:unfocus": {
+                "set_property": { "picross:focused": false }
+            }
+        }
+    }
+}

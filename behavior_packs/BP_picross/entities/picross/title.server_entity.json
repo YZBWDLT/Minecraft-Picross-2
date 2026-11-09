@@ -1,0 +1,25 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:entity": {
+        "description": {
+            "identifier": "picross:title",
+            "is_spawnable": false,
+            "is_summonable": true,
+            "properties": {
+                "picross:is_gen_1": { "default": false, "client_sync": true, "type": "bool" }
+            }
+        },
+        "components": {
+            "minecraft:collision_box": { "height": 0, "width": 0 },
+            "minecraft:physics": {}
+        },
+        "events": {
+            "picross:change_to_gen_1": {
+                "set_property": { "picross:is_gen_1": true }
+            },
+            "picross:change_to_gen_2": {
+                "set_property": { "picross:is_gen_1": false }
+            }
+        }
+    }
+}

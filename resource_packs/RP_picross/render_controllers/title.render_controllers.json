@@ -1,0 +1,17 @@
+{
+    "format_version": "1.10.0",
+    "render_controllers": {
+        "controller.render.picross.title_base": {
+            "geometry": "geometry.default",
+            "materials": [{ "*": "material.default" }],
+            "textures": ["Texture.default"],
+            "part_visibility": [{ "two": false }]
+        },
+        "controller.render.picross.title_2": {
+            "geometry": "geometry.default",
+            "materials": [{ "*": "material.default" }],
+            "textures": ["Texture.two"],
+            "part_visibility": [{ "*": false, "two": true }]
+        }
+    }
+}

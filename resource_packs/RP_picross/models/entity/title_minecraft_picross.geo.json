@@ -1,0 +1,49 @@
+{
+    "format_version": "1.12.0",
+    "minecraft:geometry": [
+        {
+            "description": {
+                "identifier": "geometry.title",
+                "texture_width": 1001,
+                "texture_height": 277,
+                "visible_bounds_width": 64,
+                "visible_bounds_height": 10,
+                "visible_bounds_offset": [0, 1, 0]
+            },
+            "bones": [
+                {
+                    "name": "root",
+                    "pivot": [0, 0, 0]
+                },
+                {
+                    "name": "minecraft_picross",
+                    "parent": "root",
+                    "pivot": [0, 0, 0],
+                    "cubes": [
+                        {
+                            "origin": [-499.9, 1, -139.1],
+                            "size": [1001, 0, 277],
+                            "uv": {
+                                "up": { "uv": [0, 0], "uv_size": [1001, 277] }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "two",
+                    "parent": "root",
+                    "pivot": [422, 0, -23],
+                    "cubes": [
+                        {
+                            "origin": [-499.9, 2, -139.1],
+                            "size": [1001, 0, 277],
+                            "uv": {
+                                "up": { "uv": [0, 0], "uv_size": [1001, 277] }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+{
+    "format_version": "1.10.0",
+    "render_controllers": {
+        "controller.render.button": {
+            "arrays": {
+                "textures": {
+                    "Array.button": [
+                        "Texture.start_game",
+                        "Texture.start_game_focus",
+                        "Texture.mini_game",
+                        "Texture.mini_game_focus",
+                        "Texture.mosaic",
+                        "Texture.mosaic_focus",
+                        "Texture.theme",
+                        "Texture.theme_focus",
+                        "Texture.custom_mode",
+                        "Texture.custom_mode_focus",
+                        "Texture.settings",
+                        "Texture.settings_focus"
+                    ]
+                }
+            },
+            "geometry": "Geometry.default",
+            "materials": [
+                {
+                    "*": "Material.default"
+                }
+            ],
+            "textures": ["Array.button[math.floor(v.btn_idx)]"]
+        }
+    }
+}

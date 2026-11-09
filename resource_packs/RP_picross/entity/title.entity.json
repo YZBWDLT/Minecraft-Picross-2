@@ -1,0 +1,25 @@
+{
+    "format_version": "1.10.0",
+    "minecraft:client_entity": {
+        "description": {
+            "identifier": "picross:title",
+            "render_controllers": ["controller.render.picross.title_base", "controller.render.picross.title_2"],
+            "materials": { "default": "entity_alphatest" },
+            "geometry": { "default": "geometry.title" },
+            "textures": {
+                "default": "textures/entity/title_base",
+                "two": "textures/entity/title_2"
+            },
+            "scripts": {
+                "pre_animation": ["v.is_gen1 = query.property('picross:is_gen_1');"],
+                "scale": "0.6",
+                "animate": ["2_disappear_controller"]
+            },
+            "animations": {
+                "2_disappear": "animation.title.2_disappear",
+                "2_appear": "animation.title.2_appear",
+                "2_disappear_controller": "controller.animation.title.two"
+            }
+        }
+    }
+}

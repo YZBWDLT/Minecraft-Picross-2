@@ -1,0 +1,37 @@
+{
+    "format_version": "1.10.0",
+    "minecraft:client_entity": {
+        "description": {
+            "identifier": "picross:button",
+            "render_controllers": ["controller.render.button"],
+            "materials": {
+                "default": "entity_alphatest"
+            },
+            "geometry": {
+                "default": "geometry.button"
+            },
+            "textures": {
+                "start_game": "textures/entity/button_start_game",
+                "start_game_focus": "textures/entity/button_start_game_focus",
+                "mini_game": "textures/entity/button_mini_game",
+                "mini_game_focus": "textures/entity/button_mini_game_focus",
+                "mosaic": "textures/entity/button_mosaic",
+                "mosaic_focus": "textures/entity/button_mosaic_focus",
+                "theme": "textures/entity/button_theme",
+                "theme_focus": "textures/entity/button_theme_focus",
+                "custom_mode": "textures/entity/button_custom_mode",
+                "custom_mode_focus": "textures/entity/button_custom_mode_focus",
+                "settings": "textures/entity/button_settings",
+                "settings_focus": "textures/entity/button_settings_focus"
+            },
+            "scripts": {
+                "pre_animation": [
+                    "v.type = query.property('picross:type');",
+                    "v.focused = query.property('picross:focused');",
+                    "v.btn_idx = (v.type == 'mini_game' ? 1 : (v.type == 'mosaic' ? 2 : (v.type == 'theme' ? 3 : (v.type == 'custom_mode' ? 4 : (v.type == 'settings' ? 5 : 0))))) * 2 + (v.focused ? 1 : 0);"
+                ],
+                "scale": "query.property('picross:focused') ? 1.08 : 1.0"
+            }
+        }
+    }
+}

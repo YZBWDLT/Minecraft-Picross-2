@@ -1,0 +1,38 @@
+{
+    "format_version": "1.12.0",
+    "minecraft:geometry": [
+        {
+            "description": {
+                "identifier": "geometry.button",
+                "texture_width": 400,
+                "texture_height": 40,
+                "visible_bounds_width": 32,
+                "visible_bounds_height": 8,
+                "visible_bounds_offset": [0, 2, 0]
+            },
+            "bones": [
+                {
+                    "name": "root",
+                    "pivot": [0, 0, 0]
+                },
+                {
+                    "name": "button",
+                    "parent": "root",
+                    "pivot": [0, 0, 0],
+                    "cubes": [
+                        {
+                            "origin": [-200, 1, -20],
+                            "size": [400, 0, 40],
+                            "uv": {
+                                "up": {
+                                    "uv": [0, 0],
+                                    "uv_size": [400, 40]
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

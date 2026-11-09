@@ -1,0 +1,18 @@
+{
+    "format_version": "1.10.0",
+    "animation_controllers": {
+        "controller.animation.title.two": {
+            "initial_state": "default",
+            "states": {
+                "default": {
+                    "transitions": [{ "2_disappear": "v.is_gen1" }],
+                    "animations": ["2_appear"]
+                },
+                "2_disappear": {
+                    "transitions": [{ "default": "!v.is_gen1" }],
+                    "animations": ["2_disappear"]
+                }
+            }
+        }
+    }
+}
