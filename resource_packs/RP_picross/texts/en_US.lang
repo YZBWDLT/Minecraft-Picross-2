@@ -157,6 +157,10 @@ picross:tool.name=Tools
 
 ## ===== Level Names =====
 
+### Tutorial
+levelName.0-1=Smile
+### Chapter 1
+levelName.1-1=Example
 ### Levels in Picross 1
 levelName.picross1Levels.1-1=§aCreeper
 levelName.picross1Levels.1-2=§6Power Source

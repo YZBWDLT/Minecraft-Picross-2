@@ -157,6 +157,10 @@ picross:tool.name=工具
 
 ## ===== 关卡名 =====
 
+### 教程
+levelName.0-1=笑脸
+### 第 1 章
+levelName.1-1=示例
 ### Picross 1 的关卡
 levelName.picross1Levels.1-1=§a苦力怕
 levelName.picross1Levels.1-2=§6电源

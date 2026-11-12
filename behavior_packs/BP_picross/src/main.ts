@@ -5,6 +5,7 @@ import * as board from "./board";
 import * as animation from "./animation";
 import { goldRush } from "./settings";
 import type { LevelData } from "./levels/type";
+import { levels } from "./levels/registry";
 
 // #region 调试
 
@@ -38,26 +39,89 @@ const PencilAndEraserId = "picross:pencil_and_eraser";
 /** 点击即可切换完成状态的方块 tag。 */
 const ClueTags = ["picross:clue", "picross:arrow"];
 
+/** 游戏模式。 */
+export enum Mode {
+    /** 主线关卡。 */
+    Main = "main",
+
+    /** 迷你游戏 - 间隔模式。 */
+    Gap = "gap",
+
+    /** 迷你游戏 - 打乱模式。 */
+    Shuffle = "shuffle",
+
+    /** 迷你游戏 - 宽数字模式。 */
+    WideClue = "wideClue",
+
+    /** 迷你游戏 - 雷达模式。 */
+    Radar = "radar",
+
+    /** 拼图模式。 */
+    Mosaic = "mosaic",
+
+    /** 自定义模式。 */
+    CustomMode = "customMode",
+
+    /** 1 代普通关卡。 */
+    Picross1Normal = "picross1Normal",
+
+    /** 1 代困难关卡。 */
+    Picross1Hard = "picross1Hard",
+
+    /** 1 代间隔模式。 */
+    Picross1Gap = "picross1Gap",
+
+    /** 1 代打乱模式。 */
+    Picross1Shuffle = "picross1Shuffle",
+}
+
+// #endregion
+
+// #region 游戏记录
+
+/** 游戏记录。 */
+const progress: Record<Mode, { chapter: number; level: number }> = {
+    main: { chapter: 0, level: 0 },
+    gap: { chapter: 0, level: 0 },
+    shuffle: { chapter: 0, level: 0 },
+    wideClue: { chapter: 0, level: 0 },
+    radar: { chapter: 0, level: 0 },
+    mosaic: { chapter: 0, level: 0 },
+    customMode: { chapter: 0, level: 0 },
+    picross1Normal: { chapter: 0, level: 0 },
+    picross1Hard: { chapter: 0, level: 0 },
+    picross1Gap: { chapter: 0, level: 0 },
+    picross1Shuffle: { chapter: 0, level: 0 },
+};
+
 // #endregion
 
 // #region 游戏菜单
 
 class Menu {
-    constructor() {
-        this.levelCompleted = (minecraft.world.getDynamicProperty("levelCompleted") as number | undefined) ?? 0;
+    constructor(mode: Mode, chapter: number) {
+        this.mode = mode;
+        this.chapter = chapter;
     }
 
-    /** 当前的关卡进度。 */
-    levelCompleted = 0;
+    /** 该选关页面所对应的模式。 */
+    mode: Mode;
+
+    /** 选关页面对应的章节。 */
+    chapter: number;
 
     /** 进入菜单页面。 */
-    start() {
-        // 放置关卡编号
-        let placingLevel = 0;
+    start() {}
+
+    /** 获取关卡数据。
+     * @returns 该方法可能会在模式、章节或关卡不正确时返回`undefined`，或在指定的章节内不存在关卡时返回`undefined`。
+     */
+    getGameData(level: number) {
+        return levels[this.mode][this.chapter]?.[level - 1];
     }
 }
 
-const menu = new Menu();
+const menu = new Menu(Mode.Picross1Normal, 1);
 
 // #endregion
 
@@ -65,12 +129,20 @@ const menu = new Menu();
 
 /** 代表一个游戏关卡。 */
 class Level {
-    constructor(data: LevelData) {
+    constructor(mode: Mode, chapter: number, data: LevelData) {
+        this.mode = mode;
+        this.chapter = chapter;
         this.game = new picross.PicrossGame(data, data);
         this.figureStructureId = data.figureStructureId;
         this.layout = board.getLayout(this.game);
         this.start();
     }
+
+    /** 该关卡所对应的模式。 */
+    mode: Mode;
+
+    /** 关卡对应的章节。 */
+    chapter: number;
 
     /** 代表本关使用的数织实例。 */
     game: picross.PicrossGame;
