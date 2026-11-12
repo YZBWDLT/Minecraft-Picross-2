@@ -1,6 +1,7 @@
 import type { LevelData } from "./type";
 import type { Mode } from "../main";
 import { car, chest, creeper, glasses, letterG, powerSource } from "./picross1Chapter1";
+import { smile } from "./tutorial";
 
 // ===== 提醒巴豆 =====
 // 在写完关卡之后，请将关卡导入到这里。注意使用`import`语句导入。
@@ -16,7 +17,7 @@ import { car, chest, creeper, glasses, letterG, powerSource } from "./picross1Ch
 export const levels: Record<Mode, LevelData[][]> = {
     /** 主线关卡。 */
     main: [
-        [], // 教程关卡
+        [smile], // 教程关卡
         [], // 第 1 章
         [], // 第 2 章
         [], // 第 3 章
