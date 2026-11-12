@@ -4,7 +4,7 @@ import * as picross from "./picross";
 import * as board from "./board";
 import * as animation from "./animation";
 import { goldRush } from "./settings";
-import { picross1Levels, type LevelData } from "./levels";
+import type { LevelData } from "./levels/type";
 
 // #region 调试
 
@@ -37,6 +37,27 @@ const PencilAndEraserId = "picross:pencil_and_eraser";
 
 /** 点击即可切换完成状态的方块 tag。 */
 const ClueTags = ["picross:clue", "picross:arrow"];
+
+// #endregion
+
+// #region 游戏菜单
+
+class Menu {
+    constructor() {
+        this.levelCompleted = (minecraft.world.getDynamicProperty("levelCompleted") as number | undefined) ?? 0;
+    }
+
+    /** 当前的关卡进度。 */
+    levelCompleted = 0;
+
+    /** 进入菜单页面。 */
+    start() {
+        // 放置关卡编号
+        let placingLevel = 0;
+    }
+}
+
+const menu = new Menu();
 
 // #endregion
 

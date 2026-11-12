@@ -1,7 +1,7 @@
 import type { LevelData } from "./type";
 
 /** 1 代 1-1：苦力怕 */
-export const level1: LevelData = {
+export const creeper: LevelData = {
     columnClues: [[2], [2, 2], [2], [2, 2], [2]],
     rowClues: [[2, 2], [2, 2], [1], [3], [1, 1]],
     name: "levelName.picross1Levels.1-1",
@@ -10,7 +10,7 @@ export const level1: LevelData = {
 };
 
 /** 1 代 1-2：电源 */
-export const level2: LevelData = {
+export const powerSource: LevelData = {
     columnClues: [[2], [1, 1], [3, 1], [1, 1], [2]],
     rowClues: [[1], [3], [1, 1, 1], [1, 1], [3]],
     name: "levelName.picross1Levels.1-2",
@@ -19,7 +19,7 @@ export const level2: LevelData = {
 };
 
 /** 1 代 1-3：字母“G” */
-export const level3: LevelData = {
+export const letterG: LevelData = {
     columnClues: [[3], [1, 1], [1, 1], [1, 1, 1], [2]],
     rowClues: [[3], [1], [1, 2], [1, 1], [3]],
     name: "levelName.picross1Levels.1-3",
@@ -28,7 +28,7 @@ export const level3: LevelData = {
 };
 
 /** 1 代 1-4：箱子 */
-export const level4: LevelData = {
+export const chest: LevelData = {
     columnClues: [[8], [2, 1, 1], [1, 1, 1, 1], [1, 4, 1], [1, 4, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 8], [2, 1, 1], [8]],
     rowClues: [[8], [1, 2], [8, 1], [1, 2, 1, 1], [1, 2, 3], [8, 1], [1, 1, 1], [1, 1, 1], [1, 2], [8]],
     name: "levelName.picross1Levels.1-4",
@@ -37,7 +37,7 @@ export const level4: LevelData = {
 };
 
 /** 1 代 1-5：3D 眼镜 */
-export const level5: LevelData = {
+export const glasses: LevelData = {
     columnClues: [[0], [7], [1, 1, 1], [1, 1, 1], [1], [1], [1, 1, 1], [1, 1, 1], [7], [0]],
     rowClues: [[0], [1, 1], [1, 1, 1, 1], [1, 1], [1, 1], [1, 1], [3, 3], [1, 2, 1], [3, 3], [0]],
     name: "levelName.picross1Levels.1-5",
@@ -46,7 +46,7 @@ export const level5: LevelData = {
 };
 
 /** 1 代 1-6：汽车 */
-export const level6: LevelData = {
+export const car: LevelData = {
     columnClues: [
         [4],
         [1, 1],

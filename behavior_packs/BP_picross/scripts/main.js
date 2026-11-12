@@ -4,7 +4,6 @@ import * as picross from "./picross";
 import * as board from "./board";
 import * as animation from "./animation";
 import { goldRush } from "./settings";
-import { picross1Levels } from "./levels";
 // #region 调试
 /** 仅调试用：右键钻石切换开发者权限。开发者不受任何交互与破坏限制。 */
 minecraft.world.afterEvents.itemUse.subscribe(event => {
@@ -31,6 +30,21 @@ const EraserId = "picross:eraser";
 const PencilAndEraserId = "picross:pencil_and_eraser";
 /** 点击即可切换完成状态的方块 tag。 */
 const ClueTags = ["picross:clue", "picross:arrow"];
+// #endregion
+// #region 游戏菜单
+class Menu {
+    constructor() {
+        this.levelCompleted = minecraft.world.getDynamicProperty("levelCompleted") ?? 0;
+    }
+    /** 当前的关卡进度。 */
+    levelCompleted = 0;
+    /** 进入菜单页面。 */
+    start() {
+        // 放置关卡编号
+        let placingLevel = 0;
+    }
+}
+const menu = new Menu();
 // #endregion
 // #region 关卡
 /** 代表一个游戏关卡。 */
