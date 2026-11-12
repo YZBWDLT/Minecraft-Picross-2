@@ -80,7 +80,7 @@ export enum Mode {
 // #region 游戏记录
 
 /** 游戏记录。 */
-const progress: Record<Mode, { chapter: number; level: number }> = {
+let progress: Record<Mode, { chapter: number; level: number }> = {
     main: { chapter: 0, level: 0 },
     gap: { chapter: 0, level: 0 },
     shuffle: { chapter: 0, level: 0 },
@@ -98,20 +98,39 @@ const progress: Record<Mode, { chapter: number; level: number }> = {
 
 // #region 游戏菜单
 
-class Menu {
+/** 一个选关界面。 */
+class ChooseLevelMenu {
+    /** @param chapter 设置为`0`时代表使用教程关卡。 */
     constructor(mode: Mode, chapter: number) {
         this.mode = mode;
         this.chapter = chapter;
     }
 
     /** 该选关页面所对应的模式。 */
-    mode: Mode;
+    readonly mode: Mode;
 
     /** 选关页面对应的章节。 */
-    chapter: number;
+    readonly chapter: number;
+
+    /** 当前正在运行的关卡。 */
+    level: Level | undefined;
 
     /** 进入菜单页面。 */
-    start() {}
+    start() {
+        this.level = void 0;
+        lib.PlayerUtils.getAll().forEach(player => {
+            player.playMusic("select_common_level", { loop: true });
+        });
+        minecraft.world.sendMessage("进入了菜单页面。");
+    }
+
+    /** 开始关卡。 */
+    startLevel(level: number) {
+        const levelData = this.getGameData(level);
+        if (!levelData)
+            return minecraft.world.sendMessage(`§c不合法的关卡。请确认关卡 ${this.mode}: ${this.chapter}-${level} 是否存在`);
+        this.level = new Level(this, levelData);
+    }
 
     /** 获取关卡数据。
      * @returns 该方法可能会在模式、章节或关卡不正确时返回`undefined`，或在指定的章节内不存在关卡时返回`undefined`。
@@ -121,134 +140,101 @@ class Menu {
     }
 }
 
-const menu = new Menu(Mode.Picross1Normal, 1);
-
 // #endregion
 
 // #region 关卡
 
 /** 代表一个游戏关卡。 */
-class Level {
-    constructor(mode: Mode, chapter: number, data: LevelData) {
-        this.mode = mode;
-        this.chapter = chapter;
+export class Level {
+    constructor(menu: ChooseLevelMenu, data: LevelData) {
+        this.menu = menu;
+        this.mode = menu.mode;
+        this.chapter = menu.chapter;
         this.game = new picross.PicrossGame(data, data);
         this.figureStructureId = data.figureStructureId;
         this.layout = board.getLayout(this.game);
         this.start();
     }
 
-    /** 该关卡所对应的模式。 */
-    mode: Mode;
+    /** 该关卡对应的选关界面。 */
+    readonly menu: ChooseLevelMenu;
+
+    /** 该关卡对应的模式。 */
+    readonly mode: Mode;
 
     /** 关卡对应的章节。 */
-    chapter: number;
+    readonly chapter: number;
 
     /** 代表本关使用的数织实例。 */
-    game: picross.PicrossGame;
+    readonly game: picross.PicrossGame;
 
     /** 通关后展示的图案结构 ID。 */
-    figureStructureId: string | undefined;
+    readonly figureStructureId: string | undefined;
 
     /** 本关的布局。 */
-    layout: board.BoardLayout | undefined;
+    readonly layout: board.BoardLayout;
 
     /** 面板是否可操作。 */
     boardOperable = false;
 
-    /** 关卡是否已结束。 */
-    finished = false;
-
-    /** 退场流程是否已经启动，避免 `exit()` 被调两次叠出两段动画。 */
-    private exiting = false;
-
     // #region - 启动与退场
+
+    /** 关卡是否已结束。 */
+    private finished = false;
+
+    /** 退场流程是否已经启动。 */
+    private exiting = false;
 
     /** 启动关卡。 */
     start() {
+        // 注册关卡所需要的组件
         Components.interactionController(this);
         Components.preventPlayerBreakBlocks(this);
 
-        // 开场音乐跟着黑屏淡出的那一拍起，时序在动画里
-        try {
-            animation.playStartAnimation(this.getAnimationContext());
-        } catch (cause) {
-            this.fail(cause);
-        }
+        // 播放开始动画
+        animation.playStartAnimation(this);
     }
 
-    /** 离开关卡：播完退场动画，动画里会重置场地并在场地恢复后解锁玩家。 */
-    exit() {
-        if (this.exiting) return;
-        this.exiting = true;
-
-        // 退关就该把本系统挂在 gameSystem 上的时间线和事件全部收掉，否则旧动画会在退关后继续铺方块
-        lib.gameSystem.unsubscribeAllTimelines();
-        lib.gameSystem.unsubscribeAllEvents();
-
-        // 退场期间玩家不能再碰盘面
-        this.boardOperable = false;
-
-        // 布局都没算出来，说明开场就失败了，没什么场地要重置，解锁走人即可
-        if (this.layout === undefined) {
-            lib.PlayerUtils.unlockPlayers();
-            return;
-        }
-
-        // 动画自己出错会走 fail，这里不必再接
-        try {
-            animation.playExitAnimation(this.getAnimationContext());
-        } catch (cause) {
-            this.fail(cause);
-        }
-    }
-
-    /** 谜题完成后调用。重复触发只生效一次。 */
+    /** 完成谜题。 */
     private finish() {
         if (this.finished) return;
         this.finished = true;
 
-        // 立刻掐掉盘面操作，后面整段动画期间玩家都碰不到格子
+        // 禁止玩家操作面板
         this.boardOperable = false;
 
-        try {
-            // 擦除与展示都要垫音乐，所以在这里就开播
-            lib.PlayerUtils.getAll().forEach(player => player.playMusic("finish", { loop: true }));
-            animation.playFinishAnimation(this.getAnimationContext());
-        } catch (cause) {
-            // 擦盘或架镜头出错时别把玩家留在锁定状态
-            this.fail(cause);
-        }
+        // 播放结束音乐和动画
+        lib.PlayerUtils.getAll().forEach(player => player.playMusic("finish", { loop: true }));
+        animation.playFinishAnimation(this);
     }
 
-    /** 任何一步出错都走这里：报原因、解锁操作，避免玩家被留在黑屏且不能动的世界里。 */
-    private fail(cause: unknown) {
+    /** 离开关卡并播放退场动画。 */
+    exit() {
+        if (this.exiting) return;
+        this.exiting = true;
+
+        // 终止所有时间线和事件
+        lib.gameSystem.unsubscribeAllTimelines();
+        lib.gameSystem.unsubscribeAllEvents();
+
+        // 禁止玩家操作面板
+        this.boardOperable = false;
+
+        // 播放结束动画，并在播放结束之后返回菜单
+        animation.playExitAnimation(this).then(() => {
+            this.menu.start();
+        });
+    }
+
+    /** 当动画程序执行错误时执行的方法，防止玩家被彻底锁定。 */
+    fail(cause: unknown) {
         minecraft.world.sendMessage(`§c关卡出错：${String(cause)}`);
         this.boardOperable = true;
         lib.PlayerUtils.unlockPlayers();
     }
 
-    /** 打包动画需要的那一套能力。动画只拿到自己用得上的东西，不碰关卡的其它状态。 */
-    private getAnimationContext(): animation.AnimationContext {
-        const layout = this.layout;
-        if (layout === undefined) throw new Error("盘面尚未布局，无法播放动画");
-
-        return {
-            layout,
-            figureStructureId: this.figureStructureId,
-            levelName: this.game.name,
-            setBoardOperable: operable => {
-                this.boardOperable = operable;
-            },
-            loadScene: seconds => this.loadScene(seconds),
-            fail: cause => this.fail(cause),
-        };
-    }
-
-    /** 加载场地结构。
-     * @param animationSeconds 场地加载的时长，单位：秒。
-     */
-    private loadScene(animationSeconds = 1) {
+    /** 加载场地结构。默认加载 1 秒。 */
+    loadScene(animationSeconds = 1) {
         return lib.StructureUtils.placeAsync(goldRush.structureId, goldRush.structureLocation, {
             animationMode: minecraft.StructureAnimationMode.Layers,
             animationSeconds,
@@ -270,15 +256,9 @@ class Level {
         else if (state === picross.CellState.Filled) this.game.markFilled(row, column);
         else if (state === picross.CellState.Unknown) this.game.markUnknown(row, column);
 
-        // 检查谜题是否已解决，解开就进入结束流程
+        // 检查谜题是否已解决
         const puzzleSolved = this.game.isSolved();
         if (puzzleSolved) this.finish();
-
-        // 调试用
-        let debugMessage = `§7已将盘面的第 §a${row + 1}§7 行，第 §a${column + 1}§7 列更改为 §a${state}§7 状态`;
-        if (puzzleSolved) debugMessage = debugMessage + `\n§b谜题已被解开！`;
-        lib.Debug.sendMessage(debugMessage, "actionBar");
-
         return puzzleSolved;
     }
 
@@ -315,8 +295,7 @@ class Level {
 
     /** 将 Minecraft 坐标转换为 Picross 游戏实例的行列坐标。 */
     getPicrossLocation(location: minecraft.Vector3): picross.CellPos {
-        // 任何交互都发生在布局之后，这里的兜底只是为了让类型上不必处处判空
-        const start = this.layout?.startLocation ?? { x: 0, y: 0, z: 0 };
+        const start = this.layout.startLocation;
         return { column: location.x - start.x, row: location.z - start.z };
     }
 
@@ -479,11 +458,8 @@ class Components {
 // #region 入口
 
 minecraft.world.afterEvents.worldLoad.subscribe(() => {
-    // // 调试用：直接进第 1 章第 index 关，之后换成选关界面
-    // const index = 1;
-    // const data: LevelData | undefined = picross1Levels["chapter1"]?.[index];
-    // // 当前存在问题：区块未完全加载会报错
-    // if (data !== undefined) new Level(data);
+    const chooseLevelMenu = new ChooseLevelMenu(Mode.Picross1Normal, 1);
+    chooseLevelMenu.startLevel(5);
 });
 
 // #endregion
