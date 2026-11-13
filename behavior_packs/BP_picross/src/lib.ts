@@ -1739,6 +1739,10 @@ export class ItemUtils {
 
     /** 清除物品（命令写法）。 */
     static removeItem(player: minecraft.Player, itemId: string = "", data: number = -1, maxCount: number = -1) {
+        if (itemId.length === 0) {
+            player.runCommand(`clear @s`);
+            return;
+        }
         player.runCommand(`clear @s ${itemId} ${data} ${maxCount}`);
     }
 

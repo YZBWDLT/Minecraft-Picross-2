@@ -129,6 +129,7 @@
         "radar_clue_block_1111": { "textures": "textures/blocks/radar_clue_block/radar_clue_block_1111" },
         "pencil": { "textures": "textures/items/pencil" },
         "eraser": { "textures": "textures/items/eraser" },
-        "pencil_and_eraser": { "textures": "textures/items/pencil_and_eraser" }
+        "pencil_and_eraser": { "textures": "textures/items/pencil_and_eraser" },
+        "quit_level": { "textures": "textures/items/quit_level" }
     }
 }

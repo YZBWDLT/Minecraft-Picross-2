@@ -3,6 +3,7 @@
 item.picross:pencil=Pencil
 item.picross:eraser=Eraser
 item.picross:pencil_and_eraser=Pencil and Eraser
+item.picross:quit_level=quit_level Level
 
 ## ===== Blocks =====
 

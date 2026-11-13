@@ -1,0 +1,13 @@
+{
+    "format_version": "1.21.130",
+    "minecraft:item": {
+        "description": {
+            "identifier": "picross:quit_level",
+            "menu_category": { "category": "equipment" }
+        },
+        "components": {
+            "minecraft:icon": "quit_level",
+            "minecraft:max_stack_size": 1
+        }
+    }
+}

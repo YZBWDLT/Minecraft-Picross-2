@@ -280,8 +280,9 @@ export function playExitAnimation(level: Level): Promise<boolean> {
             // 淡入结束后，立刻解锁玩家并加载场地，然后终止时间线
             if (time >= animation.playerCameraFadeInTime * 20) {
                 lib.PlayerUtils.unlockPlayers(players);
-                level.loadScene();
-                resolve(true);
+                level.loadScene().then(() => {
+                    resolve(true);
+                });
                 return false;
             }
         });
@@ -363,8 +364,7 @@ function playMusic(musicId: string, loop: boolean) {
 function showFinish(level: Level, players: minecraft.Player[]) {
     // 加载通关图案
     const structureId = level.figureStructureId;
-    if (structureId === undefined) return;
-    lib.StructureUtils.placeAsync(structureId, level.layout.startLocation);
+    if (structureId) lib.StructureUtils.placeAsync(structureId, level.layout.startLocation);
 
     // 显示快捷栏标题
     players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));

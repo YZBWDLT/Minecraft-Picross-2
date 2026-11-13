@@ -36,6 +36,9 @@ const EraserId = "picross:eraser";
 /** 铅笔和橡皮 ID。 */
 const PencilAndEraserId = "picross:pencil_and_eraser";
 
+/** 退出关卡 ID。 */
+const QuitLevelId = "picross:quit_level";
+
 /** 点击即可切换完成状态的方块 tag。 */
 const ClueTags = ["picross:clue", "picross:arrow"];
 
@@ -104,6 +107,7 @@ class ChooseLevelMenu {
     constructor(mode: Mode, chapter: number) {
         this.mode = mode;
         this.chapter = chapter;
+        this.start();
     }
 
     /** 该选关页面所对应的模式。 */
@@ -117,11 +121,135 @@ class ChooseLevelMenu {
 
     /** 进入菜单页面。 */
     start() {
+        // ===== 关卡初始化 =====
+
+        // 终止所有时间线和事件
+        lib.gameSystem.unsubscribeAllTimelines();
+        lib.gameSystem.unsubscribeAllEvents();
+
+        // 设置当前未开启任何关卡
         this.level = void 0;
-        lib.PlayerUtils.getAll().forEach(player => {
-            player.playMusic("select_common_level", { loop: true });
+
+        // 播放音乐并移除玩家的物品
+        lib.PlayerUtils.getAll().forEach(player => this.initPlayer(player));
+
+        // 放置关卡编号（临时）
+        lib.BlockUtils.set({
+            id: "picross:clue_block_1",
+            location: { x: -4, y: -40, z: -2 },
+            states: { "minecraft:cardinal_direction": "north" },
         });
-        minecraft.world.sendMessage("进入了菜单页面。");
+        lib.BlockUtils.set({
+            id: "picross:clue_block_2",
+            location: { x: -2, y: -40, z: -2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_3",
+            location: { x: 0, y: -40, z: -2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_4",
+            location: { x: 2, y: -40, z: -2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_5",
+            location: { x: 4, y: -40, z: -2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+
+        lib.BlockUtils.set({
+            id: "picross:clue_block_6",
+            location: { x: -4, y: -40, z: 0 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_7",
+            location: { x: -2, y: -40, z: 0 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_8",
+            location: { x: 0, y: -40, z: 0 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_9",
+            location: { x: 2, y: -40, z: 0 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_10",
+            location: { x: 4, y: -40, z: 0 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+
+        lib.BlockUtils.set({
+            id: "picross:clue_block_11",
+            location: { x: -4, y: -40, z: 2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_12",
+            location: { x: -2, y: -40, z: 2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_13",
+            location: { x: 0, y: -40, z: 2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_14",
+            location: { x: 2, y: -40, z: 2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+        lib.BlockUtils.set({
+            id: "picross:clue_block_15",
+            location: { x: 4, y: -40, z: 2 },
+            states: { "minecraft:cardinal_direction": "north" },
+        });
+
+        // ===== 玩家破坏方块检测 =====
+        // 阻止玩家破坏一切方块，不阻止开发者
+        lib.gameSystem.subscribeEvent("playerBreakBlockTest", minecraft.world.beforeEvents.playerBreakBlock, event => {
+            event.cancel = !event.player.hasTag("picross:developer");
+        });
+
+        // ===== 玩家破坏方块检测 =====
+        // 阻止玩家的一切交互，不阻止开发者
+        lib.gameSystem.subscribeEvent("playerInteractWithBlockTest", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
+            event.cancel = !event.player.hasTag("picross:developer");
+
+            if (!event.isFirstEvent) return;
+
+            // 如果玩家和关卡编号交互，则尝试启动关卡（临时）
+            if (event.block.typeId === "picross:clue_block_1") minecraft.system.run(() => this.startLevel(1));
+            else if (event.block.typeId === "picross:clue_block_2") minecraft.system.run(() => this.startLevel(2));
+            else if (event.block.typeId === "picross:clue_block_3") minecraft.system.run(() => this.startLevel(3));
+            else if (event.block.typeId === "picross:clue_block_4") minecraft.system.run(() => this.startLevel(4));
+            else if (event.block.typeId === "picross:clue_block_5") minecraft.system.run(() => this.startLevel(5));
+            else if (event.block.typeId === "picross:clue_block_6") minecraft.system.run(() => this.startLevel(6));
+            else if (event.block.typeId === "picross:clue_block_7") minecraft.system.run(() => this.startLevel(7));
+            else if (event.block.typeId === "picross:clue_block_8") minecraft.system.run(() => this.startLevel(8));
+            else if (event.block.typeId === "picross:clue_block_9") minecraft.system.run(() => this.startLevel(9));
+            else if (event.block.typeId === "picross:clue_block_10") minecraft.system.run(() => this.startLevel(10));
+            else if (event.block.typeId === "picross:clue_block_11") minecraft.system.run(() => this.startLevel(11));
+            else if (event.block.typeId === "picross:clue_block_12") minecraft.system.run(() => this.startLevel(12));
+            else if (event.block.typeId === "picross:clue_block_13") minecraft.system.run(() => this.startLevel(13));
+            else if (event.block.typeId === "picross:clue_block_14") minecraft.system.run(() => this.startLevel(14));
+            else if (event.block.typeId === "picross:clue_block_15") minecraft.system.run(() => this.startLevel(15));
+        });
+
+        // ===== 有新玩家加入时 =====
+        // 播放音乐
+        lib.gameSystem.subscribeEvent("playerJoinGame", minecraft.world.afterEvents.playerSpawn, event => {
+            const { initialSpawn, player } = event;
+            if (!initialSpawn) return;
+            this.initPlayer(player);
+        });
     }
 
     /** 开始关卡。 */
@@ -130,6 +258,7 @@ class ChooseLevelMenu {
         if (!levelData)
             return minecraft.world.sendMessage(`§c不合法的关卡。请确认关卡 ${this.mode}: ${this.chapter}-${level} 是否存在`);
         this.level = new Level(this, levelData);
+        lib.PlayerUtils.getAll().forEach(player => player.stopMusic());
     }
 
     /** 获取关卡数据。
@@ -137,6 +266,12 @@ class ChooseLevelMenu {
      */
     getGameData(level: number) {
         return levels[this.mode][this.chapter]?.[level - 1];
+    }
+
+    /** 当主菜单初始化或玩家重新进入时，初始化玩家。 */
+    initPlayer(player: minecraft.Player) {
+        player.playMusic("select_common_level", { loop: true, fade: 1 });
+        lib.ItemUtils.removeItem(player);
     }
 }
 
@@ -187,12 +322,144 @@ export class Level {
 
     /** 启动关卡。 */
     start() {
-        // 注册关卡所需要的组件
-        Components.interactionController(this);
-        Components.preventPlayerBreakBlocks(this);
+        // ===== 关卡初始化 =====
+
+        // 终止所有时间线和事件
+        lib.gameSystem.unsubscribeAllTimelines();
+        lib.gameSystem.unsubscribeAllEvents();
 
         // 播放开始动画
-        animation.playStartAnimation(this);
+        animation.playStartAnimation(this).then(() => {
+            // 给予玩家物品
+            lib.PlayerUtils.getAll().forEach(player => {
+                lib.ItemUtils.inventory.set(player, 0, PencilAndEraserId, { itemLock: minecraft.ItemLockMode.slot });
+                lib.ItemUtils.inventory.set(player, 1, board.CellBlockId, { itemLock: minecraft.ItemLockMode.slot });
+                lib.ItemUtils.inventory.set(player, 8, QuitLevelId, { itemLock: minecraft.ItemLockMode.slot });
+            });
+        });
+
+        // ===== 玩家破坏方块检测 =====
+        // 阻止玩家破坏除了格子方块之外的一切方块，不阻止开发者
+        lib.gameSystem.subscribeEvent("playerBreakBlockTest", minecraft.world.beforeEvents.playerBreakBlock, event => {
+            const { block, player } = event;
+            event.cancel = !player.hasTag("picross:developer");
+            if (!this.boardOperable) return; // 在播放动画时也禁止，防止玩家在播放动画时和盘面交互
+            if (block.hasTag(board.CellBlockId)) {
+                event.cancel = false;
+                minecraft.system.run(() => this.breakCellBlock(block.location));
+            }
+        });
+
+        // ===== 玩家使用物品检测 =====
+        // 当玩家使用了退出物品后，离开关卡
+        lib.gameSystem.subscribeEvent("playerUseItemTest", minecraft.world.afterEvents.itemUse, event => {
+            const { itemStack } = event;
+            if (itemStack.typeId === QuitLevelId) this.exit();
+        });
+
+        // ===== 玩家与方块交互检测 =====
+        // 阻止玩家进行一切非以下类型的交互：
+        // 1. 在允许的高度下使用格子方块的交互
+        //    玩家可以放置格子方块以复原挖错的格子方块。
+        // 2. 与格子方块、标记的格子方块的方块交互，以及和线索方块的交互
+        //    玩家可以使用铅笔、橡皮、铅笔与橡皮与格子方块进行交互，以标记/取消标记格子方块。可以直接和线索方块、箭头方块交互。
+        //    当玩家使用铅笔与橡皮和格子方块交互时，因为需要在扫过时快速标记（不然一个一个点手感很差），所以这里必须记录玩家在本轮已处理过的方块和本轮使用的模式。
+        // 3. 开发者的交互
+
+        /** 工具在本次交互时使用的填涂模式。仅用于铅笔与橡皮。 */
+        type PaintMode = "mark" | "erase";
+
+        /** 每位玩家本轮按住期间已经处理过的方块。 */
+        const handledBlocks = new Map<string, Set<string>>();
+
+        /** 每位玩家本轮按住期间锁定的工具模式，只有「铅笔和橡皮」会用到。 */
+        const lockedPaintModes = new Map<string, PaintMode>();
+
+        /** 尝试处理正被交互的格子方块/标记的格子方块。
+         * @returns 返回格子方块/标记的格子方块在本轮交互中是否已被交互过。
+         */
+        const tryHandle = (player: minecraft.Player, location: minecraft.Vector3): boolean => {
+            let handled = handledBlocks.get(player.id);
+            if (!handled) {
+                handled = new Set<string>();
+                handledBlocks.set(player.id, handled);
+            }
+            const key = lib.Vector3Utils.toString(location);
+            if (handled.has(key)) return true;
+            handled.add(key);
+            return false;
+        };
+
+        /** 解析铅笔、橡皮、铅笔和橡皮在本次交互中使用的填涂模式。
+         * @returns 当初始填涂的方块不是格子方块/标记的格子方块时、或不为铅笔、橡皮、铅笔与橡皮中的任意一个时返回 `undefined`（不锁定）。
+         */
+        const resolvePaintMode = (
+            player: minecraft.Player,
+            block: minecraft.Block,
+            tool: string | undefined,
+        ): PaintMode | undefined => {
+            // 当使用对应工具时，使用对应模式
+            if (tool === PencilId) return "mark";
+            if (tool === EraserId) return "erase";
+            if (tool !== PencilAndEraserId) return undefined;
+
+            // 如果已经确定过填涂模式，则直接使用之
+            const locked = lockedPaintModes.get(player.id);
+            if (locked) return locked;
+
+            // 否则，由初始填涂的方块确定填涂模式，并同步到 lockedPaintModes 中
+            const mode: PaintMode | undefined =
+                block.typeId === board.CellBlockId ? "mark" : block.typeId === board.CellMarkedBlockId ? "erase" : undefined;
+            if (mode) lockedPaintModes.set(player.id, mode);
+            return mode;
+        };
+
+        lib.gameSystem.subscribeEvent("playerInteractWithBlockTest", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
+            const { player, itemStack: item, isFirstEvent, block } = event;
+
+            event.cancel = !player.hasTag("picross:developer"); // 允许开发者的交互
+            if (!this.boardOperable) return; // 在播放动画时也禁止，防止玩家在播放动画时和盘面交互
+
+            // --- 1. 在允许的高度下使用格子方块的交互 ---
+            if (board.isCellBlock(item?.typeId ?? "")) {
+                const placeLocation = lib.BlockUtils.getPlaceLocation(event);
+                if (placeLocation.y === goldRush.boardCenter.y && !tryHandle(player, placeLocation)) {
+                    event.cancel = false;
+                    minecraft.system.run(() => this.placeCellBlock(placeLocation));
+                    return;
+                }
+            }
+
+            // --- 2. 与格子方块、标记的格子方块的方块交互，以及和线索方块的交互 ---
+            if (isFirstEvent) {
+                handledBlocks.delete(player.id);
+                lockedPaintModes.delete(player.id);
+            }
+            if (ClueTags.some(clueTag => block.hasTag(clueTag))) {
+                if (tryHandle(player, block.location)) return;
+                minecraft.system.run(() => this.changeClueAndArrowBlockState(block));
+                return;
+            }
+            const paintMode = resolvePaintMode(player, block, item?.typeId);
+            if (paintMode === "mark" && block.typeId === board.CellBlockId) {
+                if (tryHandle(player, block.location)) return;
+                minecraft.system.run(() => {
+                    player.playAnimation("animation.picross.tool_swing_right", { blendOutTime: 0.1 });
+                    lib.PlayerUtils.broadcast({ sound: "block.cartography_table.use", location: block.location });
+                    this.setCellBlockMarked(block);
+                });
+                return;
+            }
+            if (paintMode === "erase" && block.typeId === board.CellMarkedBlockId) {
+                if (tryHandle(player, block.location)) return;
+                minecraft.system.run(() => {
+                    player.playAnimation("animation.picross.tool_swing_right", { blendOutTime: 0.1 });
+                    lib.PlayerUtils.broadcast({ sound: "item.bone_meal.use", soundOptions: { pitch: 1.5 }, location: block.location });
+                    this.setCellBlockUnmarked(block);
+                });
+                return;
+            }
+        });
     }
 
     /** 完成谜题。 */
@@ -304,162 +571,21 @@ export class Level {
 
 // #endregion
 
-// #region 组件
-
-/** 工具在一轮拖动里的行为模式。「铅笔和橡皮」两种都干得了，所以每轮只能锁一种。 */
-type PaintMode = "mark" | "erase";
-
-/** 游戏中的各类交互组件。
- * @description 每个方法都只负责订阅一类事件，并把具体的方块读写交给 `Level`。
- */
-class Components {
-    /** 阻止玩家破坏方块。
-     * @description 默认情况下，阻止任何破坏。
-     * @description 允许开发者进行任意程度的破坏。
-     * @description 允许玩家破坏格子方块。
-     */
-    static preventPlayerBreakBlocks(level: Level) {
-        lib.gameSystem.subscribeEvent("preventPlayerBreakBlocks", minecraft.world.beforeEvents.playerBreakBlock, event => {
-            const { block, player } = event;
-
-            // 先默认拦下一切破坏，开发者不受限制
-            event.cancel = !player.hasTag("picross:developer");
-
-            // 面板不可操作时（还没出全 / 已结算）不允许破坏，避免玩家在半成品盘面或结算过程中操作
-            if (!level.boardOperable) return;
-
-            // 棋盘格是唯一的例外：挖掉就等于填涂
-            if (block.hasTag(board.CellBlockId)) {
-                event.cancel = false;
-                minecraft.system.run(() => level.breakCellBlock(block.location));
-            }
-        });
-    }
-
-    /** 交互控制器，控制游戏的交互。
-     * @description 默认情况下，阻止任何交互。
-     * @description 允许开发者进行任意程度的交互。
-     * @description 允许玩家在规定高度放置格子方块。
-     * @description 允许玩家和线索方块交互，并更新其状态。
-     * @description 手持工具时可以按住拖动，扫过哪格就处理哪格。
-     */
-    static interactionController(level: Level) {
-        /** 每位玩家本轮按住期间已经处理过的方块。
-         * @description 按住右键时交互会以 tick 频率反复触发，同一格必须只处理一次，
-         * 否则「铅笔和橡皮」会在同一格上标记 → 取消 → 标记地循环下去。
-         * 每轮按下（`isFirstEvent`）清空，所以松开重按同一格仍然有效。
-         */
-        const handledBlocks = new Map<string, Set<string>>();
-
-        /** 每位玩家本轮按住期间锁定的工具模式，只有「铅笔和橡皮」会用到。 */
-        const lockedPaintModes = new Map<string, PaintMode>();
-
-        /** 方块坐标的唯一键。 */
-        const blockKey = (location: minecraft.Vector3) => `${location.x},${location.y},${location.z}`;
-
-        /** 本轮是否已经处理过这一格。第一次问的时候顺手记下。 */
-        const alreadyHandled = (player: minecraft.Player, location: minecraft.Vector3): boolean => {
-            let handled = handledBlocks.get(player.id);
-            if (handled === undefined) {
-                handled = new Set<string>();
-                handledBlocks.set(player.id, handled);
-            }
-            const key = blockKey(location);
-            if (handled.has(key)) return true;
-            handled.add(key);
-            return false;
-        };
-
-        /** 决定「铅笔和橡皮」这一轮是画还是擦。
-         * @description 它两种都干得了，所以必须在起手那一格就把模式定下来：
-         * 从已标记的格子起手 → 整轮只擦除；从未标记的格子起手 → 整轮只绘制。
-         * 不锁的话，拖动时扫到另一种格子会立刻反向操作，刚画完就被擦掉。
-         * @returns 纯铅笔、纯橡皮、或起手格不是可涂刷的格子时返回 `undefined`（不锁定）。
-         */
-        const resolvePaintMode = (player: minecraft.Player, block: minecraft.Block, tool: string | undefined) => {
-            if (tool !== PencilAndEraserId) return undefined;
-
-            const locked = lockedPaintModes.get(player.id);
-            if (locked !== undefined) return locked;
-
-            const mode: PaintMode | undefined =
-                block.typeId === board.CellBlockId ? "mark" : block.typeId === board.CellMarkedBlockId ? "erase" : undefined;
-            if (mode !== undefined) lockedPaintModes.set(player.id, mode);
-            return mode;
-        };
-
-        lib.gameSystem.subscribeEvent("preventPlayerPlaceBlocks", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
-            const { player, itemStack: item, isFirstEvent, block } = event;
-
-            // 先默认拦下一切交互，开发者不受限制
-            event.cancel = !player.hasTag("picross:developer");
-
-            // 面板不可操作时（还没出全 / 已结算）屏蔽一切交互
-            if (!level.boardOperable) return;
-
-            // 新的一轮按下：清掉上一轮的记录，这样松开重按同一格、换一种模式都仍然生效
-            if (isFirstEvent) {
-                handledBlocks.delete(player.id);
-                lockedPaintModes.delete(player.id);
-            }
-
-            const tool = item?.typeId;
-
-            // ① 放置格子方块：只认棋盘所在的那一层
-            if (board.isCellBlock(tool ?? "")) {
-                const placeLocation = lib.BlockUtils.getPlaceLocation(event);
-                if (placeLocation.y === goldRush.boardCenter.y && !alreadyHandled(player, placeLocation)) {
-                    event.cancel = false;
-                    minecraft.system.run(() => level.placeCellBlock(placeLocation));
-                    return;
-                }
-            }
-
-            // ② 线索与箭头：点一下切换一次完成状态
-            if (ClueTags.some(clueTag => block.hasTag(clueTag))) {
-                if (alreadyHandled(player, block.location)) return;
-                minecraft.system.run(() => level.changeClueAndArrowBlockState(block));
-                return;
-            }
-
-            // ③ 工具涂刷：铅笔只管画、橡皮只管擦，
-            //    「铅笔和橡皮」按这一轮起手的那一格锁定成其中一种，扫到不匹配的格子一律不动
-            const paintMode = resolvePaintMode(player, block, tool);
-            const canMark = tool === PencilId || paintMode === "mark";
-            const canErase = tool === EraserId || paintMode === "erase";
-
-            // 标记：未标记的格子 → 已标记
-            if (canMark && block.typeId === board.CellBlockId) {
-                if (alreadyHandled(player, block.location)) return;
-                minecraft.system.run(() => {
-                    player.playAnimation("animation.picross.tool_swing_right", { blendOutTime: 0.1 });
-                    lib.PlayerUtils.broadcast({ sound: "block.cartography_table.use", location: block.location });
-                    level.setCellBlockMarked(block);
-                });
-                return;
-            }
-
-            // 擦除：已标记的格子 → 未标记
-            if (canErase && block.typeId === board.CellMarkedBlockId) {
-                if (alreadyHandled(player, block.location)) return;
-                minecraft.system.run(() => {
-                    player.playAnimation("animation.picross.tool_swing_right", { blendOutTime: 0.1 });
-                    lib.PlayerUtils.broadcast({ sound: "item.bone_meal.use", soundOptions: { pitch: 1.5 }, location: block.location });
-                    level.setCellBlockUnmarked(block);
-                });
-                return;
-            }
-        });
-    }
-}
-
-// #endregion
-
 // #region 入口
 
 minecraft.world.afterEvents.worldLoad.subscribe(() => {
-    const chooseLevelMenu = new ChooseLevelMenu(Mode.Picross1Normal, 1);
-    chooseLevelMenu.startLevel(5);
+    async function loadGame() {
+        await lib.StructureUtils.placeAsync(goldRush.structureId, goldRush.structureLocation, {
+            animationMode: minecraft.StructureAnimationMode.Layers,
+            animationSeconds: 1,
+        });
+        // 在实例化主菜单之前，需要尝试添加预加载的常加载区域，否则会报错
+        const alreadyHasTickingarea = lib.DimensionUtils.getOverworld().runCommand("tickingarea add -64 0 -64 63 0 63 gameArea true"); // 因为2.4.0的脚本没有常加载区域方法，先凑合着用命令 :)
+        if (alreadyHasTickingarea.successCount === 0) await minecraft.system.waitTicks(40);
+
+        new ChooseLevelMenu(Mode.Main, 1);
+    }
+    loadGame();
 });
 
 // #endregion
