@@ -10,127 +10,145 @@ import { createEraseSteps, createRenderSteps, renderBoardInstant, type BoardLayo
 import { settings } from "./settings";
 import type { Level } from "./main";
 
-// #region 开场
+// #region 关卡开场
 
-/** 播放开场动画：黑屏 → 架镜头看场地升起 → 盘面逐层出现 → 交还操作。
- * @returns 走完为 `true`；关闭动画时铺完盘面也算 `true`，因为「开场该做的事」已经做完。
+/** 代表在开场动画不同的时间点额外执行的函数。 */
+export interface StartAnimationAdditionalCallback {
+    /** 场地加载后执行的函数。 */
+    onSceneLoaded?: () => void;
+
+    /** 盘面出现时执行的函数。 */
+    onBoardAppear?: () => void;
+
+    /** 动画结束时执行的函数。 */
+    onFinished?: () => void;
+}
+
+/** 播放开场动画。
+ * @description
+ * 开启动画时的流程：
+ * - Step 1：黑屏淡入后，加载场地，禁止玩家操作，在盘面上方架镜头。
+ * - Step 2：黑屏淡出后，盘面逐层出现。
+ * - Step 3：盘面出现后，等待一段时间并恢复玩家操作。
+ * @description
+ * 关闭动画时的流程：立刻显示盘面。
  */
-export function playStartAnimation(level: Level): Promise<boolean> {
+export function playStartAnimation(level: Level, additionalCallback?: StartAnimationAdditionalCallback) {
     const layout = level.layout;
     const animation = settings.animation;
     const dimension = minecraft.world.getDimension("overworld");
     const players = lib.PlayerUtils.getAll();
 
-    // 关闭动画：场地加载完直接铺满，等同于「瞬间走完开场」。
-    // 这样调用方只有一条出口，不必再自己判断 settings.animation.enabled。
+    // ===== 关闭动画时 =====
     if (!animation.enabled) {
-        return level.loadScene().then(
+        level.loadScene().then(
             () => {
+                // --- 场地加载完毕 ---
+                additionalCallback?.onSceneLoaded?.();
+
+                // --- 开始出现盘面 ---
+                additionalCallback?.onBoardAppear?.();
                 renderBoardInstant(layout, dimension);
+
+                // --- 动画结束 ---
                 level.boardOperable = true;
-                playMusic("game_1", true);
-                return true;
+                additionalCallback?.onFinished?.();
             },
             cause => {
                 level.fail(cause);
                 return false;
             },
         );
+        return;
     }
 
-    // 各阶段的边界先换算成 tick，后面判断时就不必反复累加秒数。
-    // 淡入至少留 1 tick，否则时长为 0 时 `time === fadeInTicks` 永远不成立。
-    const fadeInTicks = Math.max(1, Math.round(animation.playerCameraFadeInTime * 20));
-    const holdTicks = Math.round(animation.playerCameraHoldTime * 20);
-    const fadeOutTicks = Math.round(animation.playerCameraFadeOutTime * 20);
-    const blackoutTicks = fadeInTicks + holdTicks + fadeOutTicks;
-    const boardTicks = Math.round(animation.showCellAnimationTime * 20);
-    const endTicks = blackoutTicks + boardTicks + Math.round(animation.holdCellTime * 20);
+    // ===== 开启动画时 =====
+
+    /** Step 1：黑屏淡入的时间点。 */
+    const step1Tick = animation.playerCameraFadeInTime * 20;
+
+    /** Step 2：黑屏淡出的时间点（step1 + hold + fadeout）。 */
+    const step2Tick = step1Tick + animation.playerCameraHoldTime * 20 + animation.playerCameraFadeOutTime * 20;
+
+    /** 加载面板所需的时间。 */
+    const boardTicks = animation.showCellAnimationTime * 20;
+
+    /** Step 3：加载完毕的时间点（step2 + showCell）。 */
+    const step3Tick = step2Tick + boardTicks + animation.holdCellTime * 20;
 
     fadeCamera(players);
+    lib.gameSystem.unsubscribeTimeline("startAnimation");
+    lib.gameSystem.subscribeTimeline("startAnimation", time => {
+        try {
+            // --- 场地加载 ---
+            if (time === step1Tick) {
+                level.loadScene().then(() => additionalCallback?.onSceneLoaded?.());
+                movePlayersToOverhead(players, layout, getPanelCenter(layout), layout.panelRect);
+                lib.PlayerUtils.lockPlayers(players);
+            }
 
-    return new Promise<boolean>(resolve => {
-        const started = lib.gameSystem.subscribeTimeline("startAnimation", time => {
-            try {
-                // 屏幕完全变黑，重置场地，镜头架到盘面正上方，锁定玩家
-                if (time === fadeInTicks) {
-                    level.loadScene((holdTicks + fadeOutTicks) / 20).catch(cause => level.fail(cause));
-                    movePlayersToOverhead(players, layout, getPanelCenter(layout), layout.panelRect);
-                    lib.PlayerUtils.lockPlayers(players);
-                }
-                // 淡出开始：盘面开始出现，这时候起音乐，画面一亮就有声
-                else if (time === blackoutTicks) {
-                    playBoardAppear(level, createRenderSteps(layout, dimension), boardTicks);
-                    playMusic("game_1", true);
-                }
-                // 铺完盘面后，等待一段时间再恢复玩家操作
-                else if (time >= endTicks) {
-                    // 再传送一次：开场时场地还没升起，玩家会往下掉，落点不一定在棋盘上
-                    players.forEach(player => player.teleport(getViewpoint(layout), { rotation: { x: 0, y: 180 } }));
-                    lib.PlayerUtils.unlockPlayers(players);
-                    resolve(true);
-                    return false;
-                }
-            } catch (cause) {
-                level.fail(cause);
-                resolve(false);
+            // --- 开始出现盘面 ---
+            else if (time === step2Tick) {
+                additionalCallback?.onBoardAppear?.();
+                playBoardAppear(level, createRenderSteps(layout, dimension), boardTicks);
+                playMusic("game_1", true);
+            }
+
+            // --- 动画结束 ---
+            else if (time >= step3Tick) {
+                lib.PlayerUtils.unlockPlayers(players);
+                level.boardOperable = true;
+                additionalCallback?.onFinished?.();
                 return false;
             }
-        });
-
-        if (!started) {
-            level.fail(new Error("开场动画的时间线已被占用，可能上一关没有退出干净"));
-            resolve(false);
+        } catch (cause) {
+            level.fail(cause);
+            return false;
         }
     });
 }
 
-/** 按 tick 播放盘面的渲染帧。
+/** 播放加载盘面的动画。
  * @param steps 渲染动作，按顺序执行。
- * @param targetTicks 这批帧要在多少 tick 内播完。
  */
 function playBoardAppear(level: Level, steps: (() => void)[], targetTicks: number) {
-    const layout = level.layout;
-    const dimension = minecraft.world.getDimension("overworld");
+    /** 动画的总帧数。 */
     const frames = steps.length;
+
+    /** 动画的总时长。 */
     const ticks = Math.max(1, targetTicks);
 
-    // 首帧立刻出现，其余帧在剩下的 tick 里匀速铺开。
-    // 只用「每 tick 固定刷几帧」撑不到长时长：5×5 才 7 帧，一 tick 一帧也只能拖到 7 tick。
-    const rate = frames > 1 && ticks > 1 ? (frames - 1) / (ticks - 1) : frames;
-    let accumulator = 1;
-    let index = 0;
+    /** 动画播放的速率。 */
+    const rate = frames / ticks;
 
-    const started = lib.gameSystem.subscribeTimeline("boardAppear", () => {
+    /** 本次动画实际已加载的帧。 */
+    let loadedFrames = 0;
+
+    lib.gameSystem.unsubscribeTimeline("boardAppear");
+    lib.gameSystem.subscribeTimeline("boardAppear", time => {
         try {
-            accumulator += rate;
-            while (accumulator >= 1 && index < frames) {
-                steps[index++]?.();
-                accumulator -= 1;
+            /** 本次加载应该显示到的帧（动画速率 x 时间）。 */
+            const frameProgress = Math.min(frames, Math.round(rate * time)); // 防止越界
+
+            // 将仍未加载的目标帧加载出来
+            while (loadedFrames < frameProgress) {
+                steps[loadedFrames]?.(); // 此时应加载第 n 帧，这时 loadedFrames = n-1，这时它在帧函数数组中的索引刚好是 n-1
+                loadedFrames++;
             }
         } catch (cause) {
             level.fail(cause);
             return false;
         }
 
-        if (index >= frames) {
-            level.boardOperable = true;
-            return false;
-        }
+        // 所有帧都加载出来后，立刻终止运行
+        if (loadedFrames >= frames) return false;
     });
-
-    if (started) return;
-
-    // 同名时间线已存在（例如上一关没退干净），直接铺满，免得盘面永远出不来
-    minecraft.world.sendMessage("§e面板出现动画未能启动，已改为直接铺满");
-    renderBoardInstant(layout, dimension);
-    level.boardOperable = true;
 }
 
 // #endregion
 // #region 结束
 
-/** 播放结束动画：黑屏 → 俯视盘面 → 逐层擦除 → 展示图案与关卡名 → 退出关卡。 */
+/** 播放结束动画：黑屏 -> 俯视盘面 -> 逐层擦除 -> 展示图案与关卡名 -> 退出关卡。 */
 export function playFinishAnimation(level: Level): Promise<boolean> {
     return settings.animation.enabled ? playFinishAnimated(level) : playFinishInstant(level);
 }
@@ -243,7 +261,7 @@ function playFinishInstant(level: Level): Promise<boolean> {
 // #region 退场
 
 /** 播放退场动画。
- * @description 黑屏 → 锁定玩家并重置场地 → 场地恢复后解锁玩家
+ * @description 黑屏 -> 锁定玩家并重置场地 -> 场地恢复后解锁玩家
  */
 export function playExitAnimation(level: Level): Promise<boolean> {
     const animation = settings.animation;
