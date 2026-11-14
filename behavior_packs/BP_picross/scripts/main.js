@@ -288,13 +288,15 @@ export class Level {
         lib.gameSystem.unsubscribeAllTimelines();
         lib.gameSystem.unsubscribeAllEvents();
         // 播放开始动画
-        animation.playStartAnimation(this).then(() => {
-            // 给予玩家物品
-            lib.PlayerUtils.getAll().forEach(player => {
-                lib.ItemUtils.inventory.set(player, 0, PencilAndEraserId, { itemLock: minecraft.ItemLockMode.slot });
-                lib.ItemUtils.inventory.set(player, 1, board.CellBlockId, { itemLock: minecraft.ItemLockMode.slot });
-                lib.ItemUtils.inventory.set(player, 8, QuitLevelId, { itemLock: minecraft.ItemLockMode.slot });
-            });
+        animation.playStartAnimation(this, {
+            onFinished: () => {
+                // 给予玩家物品
+                lib.PlayerUtils.getAll().forEach(player => {
+                    lib.ItemUtils.inventory.set(player, 0, PencilAndEraserId, { itemLock: minecraft.ItemLockMode.slot });
+                    lib.ItemUtils.inventory.set(player, 1, board.CellBlockId, { itemLock: minecraft.ItemLockMode.slot });
+                    lib.ItemUtils.inventory.set(player, 8, QuitLevelId, { itemLock: minecraft.ItemLockMode.slot });
+                });
+            },
         });
         // ===== 玩家破坏方块检测 =====
         // 阻止玩家破坏除了格子方块之外的一切方块，不阻止开发者
@@ -431,11 +433,11 @@ export class Level {
     }
     /** 当动画程序执行错误时执行的方法，防止玩家被彻底锁定。 */
     fail(cause) {
-        minecraft.world.sendMessage(`§c关卡出错：${String(cause)}`);
+        minecraft.world.sendMessage(`§c关卡出错：${cause}`);
         this.boardOperable = true;
         lib.PlayerUtils.unlockPlayers();
     }
-    /** 加载场地结构。默认加载 1 秒。 */
+    /** 加载场地结构。 */
     loadScene(animationSeconds = 1) {
         return lib.StructureUtils.placeAsync(goldRush.structureId, goldRush.structureLocation, {
             animationMode: minecraft.StructureAnimationMode.Layers,
@@ -444,9 +446,7 @@ export class Level {
     }
     // #endregion
     // #region - 场景状态更改
-    /** 将 Minecraft 层面的方块更改应用到游戏实例上。
-     * @returns 返回谜题是否已被解决。
-     */
+    /** 将 Minecraft 层面的方块更改应用到游戏实例上。 */
     applyChangeToGameInstance(location, state) {
         const { column, row } = this.getPicrossLocation(location);
         // 对行列状态进行修改
@@ -460,7 +460,6 @@ export class Level {
         const puzzleSolved = this.game.isSolved();
         if (puzzleSolved)
             this.finish();
-        return puzzleSolved;
     }
     /** 更改线索方块或箭头方块的状态。 */
     changeClueAndArrowBlockState(block) {
