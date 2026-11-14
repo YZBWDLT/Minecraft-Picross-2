@@ -5,6 +5,7 @@ import * as board from "./board";
 import * as animation from "./animation";
 import { goldRush } from "./settings";
 import { levels } from "./levels/registry";
+import { CellBlockId, CellMarkedBlockId, PencilAndEraserId, PencilId, EraserId, QuitLevelId } from "./constants";
 // #region 调试
 /** 仅调试用：右键钻石切换开发者权限。开发者不受任何交互与破坏限制。 */
 minecraft.world.afterEvents.itemUse.subscribe(event => {
@@ -23,14 +24,6 @@ minecraft.world.afterEvents.itemUse.subscribe(event => {
 });
 // #endregion
 // #region 变量定义
-/** 铅笔 ID。 */
-const PencilId = "picross:pencil";
-/** 橡皮 ID。 */
-const EraserId = "picross:eraser";
-/** 铅笔和橡皮 ID。 */
-const PencilAndEraserId = "picross:pencil_and_eraser";
-/** 退出关卡 ID。 */
-const QuitLevelId = "picross:quit_level";
 /** 点击即可切换完成状态的方块 tag。 */
 const ClueTags = ["picross:clue", "picross:arrow"];
 /** 游戏模式。 */
@@ -93,10 +86,6 @@ class ChooseLevelMenu {
     level;
     /** 进入菜单页面。 */
     start() {
-        // ===== 关卡初始化 =====
-        // 终止所有时间线和事件
-        lib.gameSystem.unsubscribeAllTimelines();
-        lib.gameSystem.unsubscribeAllEvents();
         // 设置当前未开启任何关卡
         this.level = void 0;
         // 播放音乐并移除玩家的物品
@@ -177,6 +166,14 @@ class ChooseLevelMenu {
             location: { x: 4, y: -40, z: 2 },
             states: { "minecraft:cardinal_direction": "north" },
         });
+        // 重新注册时间线和事件
+        this.subscribeFunctions();
+    }
+    /** 在选关界面中需要使用的时间线和事件。 */
+    subscribeFunctions() {
+        // ===== 终止所有时间线和事件 =====
+        lib.gameSystem.unsubscribeAllTimelines();
+        lib.gameSystem.unsubscribeAllEvents();
         // ===== 玩家破坏方块检测 =====
         // 阻止玩家破坏一切方块，不阻止开发者
         lib.gameSystem.subscribeEvent("playerBreakBlockTest", minecraft.world.beforeEvents.playerBreakBlock, event => {
@@ -289,11 +286,14 @@ export class Level {
         lib.gameSystem.unsubscribeAllEvents();
         // 播放开始动画
         animation.playStartAnimation(this, {
+            onBoardAppear: () => {
+                lib.PlayerUtils.getAll().forEach(player => player.playMusic("game_1", { loop: true }));
+            },
             onFinished: () => {
                 // 给予玩家物品
                 lib.PlayerUtils.getAll().forEach(player => {
                     lib.ItemUtils.inventory.set(player, 0, PencilAndEraserId, { itemLock: minecraft.ItemLockMode.slot });
-                    lib.ItemUtils.inventory.set(player, 1, board.CellBlockId, { itemLock: minecraft.ItemLockMode.slot });
+                    lib.ItemUtils.inventory.set(player, 1, CellBlockId, { itemLock: minecraft.ItemLockMode.slot });
                     lib.ItemUtils.inventory.set(player, 8, QuitLevelId, { itemLock: minecraft.ItemLockMode.slot });
                 });
             },
@@ -305,7 +305,7 @@ export class Level {
             event.cancel = !player.hasTag("picross:developer");
             if (!this.boardOperable)
                 return; // 在播放动画时也禁止，防止玩家在播放动画时和盘面交互
-            if (block.hasTag(board.CellBlockId)) {
+            if (block.hasTag(CellBlockId)) {
                 event.cancel = false;
                 minecraft.system.run(() => this.breakCellBlock(block.location));
             }
@@ -352,7 +352,7 @@ export class Level {
             if (locked)
                 return locked;
             // 否则，由初始填涂的方块确定填涂模式，并同步到 lockedPaintModes 中
-            const mode = block.typeId === board.CellBlockId ? "mark" : block.typeId === board.CellMarkedBlockId ? "erase" : undefined;
+            const mode = block.typeId === CellBlockId ? "mark" : block.typeId === CellMarkedBlockId ? "erase" : undefined;
             if (mode)
                 lockedPaintModes.set(player.id, mode);
             return mode;
@@ -383,7 +383,7 @@ export class Level {
                 return;
             }
             const paintMode = resolvePaintMode(player, block, item?.typeId);
-            if (paintMode === "mark" && block.typeId === board.CellBlockId) {
+            if (paintMode === "mark" && block.typeId === CellBlockId) {
                 if (tryHandle(player, block.location))
                     return;
                 minecraft.system.run(() => {
@@ -393,7 +393,7 @@ export class Level {
                 });
                 return;
             }
-            if (paintMode === "erase" && block.typeId === board.CellMarkedBlockId) {
+            if (paintMode === "erase" && block.typeId === CellMarkedBlockId) {
                 if (tryHandle(player, block.location))
                     return;
                 minecraft.system.run(() => {
@@ -414,7 +414,11 @@ export class Level {
         this.boardOperable = false;
         // 播放结束音乐和动画
         lib.PlayerUtils.getAll().forEach(player => player.playMusic("finish", { loop: true }));
-        animation.playFinishAnimation(this);
+        animation.playFinishAnimation(this, {
+            onFinished: () => {
+                this.exit();
+            },
+        });
     }
     /** 离开关卡并播放退场动画。 */
     exit() {
@@ -422,8 +426,7 @@ export class Level {
             return;
         this.exiting = true;
         // 终止所有时间线和事件
-        lib.gameSystem.unsubscribeAllTimelines();
-        lib.gameSystem.unsubscribeAllEvents();
+        this.menu.subscribeFunctions();
         // 禁止玩家操作面板
         this.boardOperable = false;
         // 播放结束动画，并在播放结束之后返回菜单
@@ -469,16 +472,16 @@ export class Level {
     }
     /** 标记格子方块。会自动判断输入的方块是否为标准格子方块。 */
     setCellBlockMarked(block) {
-        if (block.typeId !== board.CellBlockId)
+        if (block.typeId !== CellBlockId)
             return;
-        lib.BlockUtils.set({ id: board.CellMarkedBlockId, location: block.location });
+        lib.BlockUtils.set({ id: CellMarkedBlockId, location: block.location });
         this.applyChangeToGameInstance(block.location, picross.CellState.Blank);
     }
     /** 取消标记格子方块。 */
     setCellBlockUnmarked(block) {
-        if (block.typeId !== board.CellMarkedBlockId)
+        if (block.typeId !== CellMarkedBlockId)
             return;
-        lib.BlockUtils.set({ id: board.CellBlockId, location: block.location });
+        lib.BlockUtils.set({ id: CellBlockId, location: block.location });
         this.applyChangeToGameInstance(block.location, picross.CellState.Unknown);
     }
     /** 玩家放置格子方块。 */

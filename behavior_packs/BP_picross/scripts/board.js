@@ -3,14 +3,9 @@
 // 这里只有几何与方块写入，不含任何时序：什么时候铺、怎么播动画由 animation.ts 决定。
 import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
+import { CellBlockId, CellLockedBlockId } from "./constants";
 import { goldRush } from "./settings";
 // #region 方块 ID
-/** 格子方块 ID。 */
-export const CellBlockId = "picross:cell_block";
-/** 标记的格子方块 ID。 */
-export const CellMarkedBlockId = "picross:marked_cell_block";
-/** 锁定标记的格子方块 ID。 */
-export const CellLockedBlockId = "picross:locked_cell_block";
 /** 线索方块 ID 前缀，后面接 0~30。 */
 const NumberBlockPrefix = "picross:clue_block_";
 /** 是否为格子方块。 */
@@ -107,18 +102,6 @@ export function getLayout(game) {
         locked,
     };
 }
-/** 按 z 把方块分层，同一层的会一起出现或一起消失。 */
-export function groupByZ(items) {
-    const layers = new Map();
-    for (const item of items) {
-        const layer = layers.get(item.location.z);
-        if (layer === undefined)
-            layers.set(item.location.z, [item]);
-        else
-            layer.push(item);
-    }
-    return layers;
-}
 // #endregion
 // #region 写入
 /** 一次性铺满整个面板。 */
@@ -131,82 +114,11 @@ export function renderBoardInstant(layout, dimension) {
     for (const location of layout.locked)
         dimension.setBlockType(location, CellLockedBlockId);
 }
-/** 把布局切成一帧帧的渲染动作。
- * @description 每一帧对应一个 tick 里要做的事，帧数决定动画粒度。
- * 整个面板当作一张纸从上往下扫：列线索区先出，再接棋盘逐行。
- */
-export function createRenderSteps(layout, dimension) {
-    const steps = [];
-    // 列线索先按层出现：从面板最上边一路扫到棋盘顶边
-    const clueLayers = groupByZ(layout.columnClues);
-    for (const z of [...clueLayers.keys()].sort((left, right) => left - right)) {
-        const layer = clueLayers.get(z);
-        steps.push(() => {
-            if (layer === undefined)
-                return;
-            for (const clue of layer)
-                placeNumber(clue.location, clue.value, dimension);
-        });
-    }
-    // 接着逐行铺棋盘，行线索和锁定格跟着所在行一起出现
-    for (const rect of layout.rowRects) {
-        steps.push(() => {
-            lib.BlockUtils.fill({ id: CellBlockId, from: rect.from, to: rect.to }, {}, dimension);
-            for (const clue of layout.rowClues) {
-                if (clue.row === rect.row)
-                    placeNumber(clue.location, clue.value, dimension);
-            }
-            for (const location of layout.locked) {
-                if (location.z === rect.from.z)
-                    dimension.setBlockType(location, CellLockedBlockId);
-            }
-        });
-    }
-    return steps;
-}
-/** 把「擦掉盘面」切成一帧帧：从面板最上边一路扫到棋盘底边。
- * @description 每一层清掉该层的线索方块；落在棋盘范围内的层，顺便把标记格和锁定格还原成普通格子。
- */
-export function createEraseSteps(layout, dimension) {
-    const steps = [];
-    // 线索按 z 收拢，同一层的列线索和行线索会一起消失
-    const clueLayers = groupByZ([...layout.rowClues, ...layout.columnClues]);
-    const boardTop = layout.boardRect.from.z;
-    const boardBottom = layout.boardRect.to.z;
-    // 从最上面一层线索开始扫
-    let top = boardTop;
-    for (const z of clueLayers.keys())
-        top = Math.min(top, z);
-    for (let z = top; z <= boardBottom; z++) {
-        const clues = clueLayers.get(z);
-        const rowRect = layout.rowRects[z - boardTop];
-        steps.push(() => {
-            // 这一层的线索方块清成空气
-            if (clues !== undefined) {
-                for (const clue of clues)
-                    dimension.setBlockType(clue.location, "minecraft:air");
-            }
-            // 棋盘行：把标记格和锁定格还原成普通格子，已挖开的空气保持不动
-            if (rowRect === undefined)
-                return;
-            for (let x = rowRect.from.x; x <= rowRect.to.x; x++) {
-                const location = { x, y: rowRect.from.y, z: rowRect.from.z };
-                const block = dimension.getBlock(location);
-                if (block === undefined)
-                    continue;
-                if (block.typeId === CellMarkedBlockId || block.typeId === CellLockedBlockId) {
-                    dimension.setBlockType(location, CellBlockId);
-                }
-            }
-        });
-    }
-    return steps;
-}
 /** 在面板上放一个线索方块，朝向统一为北。
  * @param location 方块坐标，`y` 由布局给出
  * @param value 要显示的数字，0~30
  */
-function placeNumber(location, value, dimension) {
+export function placeNumber(location, value, dimension) {
     if (!Number.isInteger(value) || value < 0 || value > 30) {
         throw new Error(`线索数字 ${value} 超出 0~30，没有对应的方块`);
     }

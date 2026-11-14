@@ -6,7 +6,8 @@
 
 import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
-import { createEraseSteps, createRenderSteps, renderBoardInstant, type BoardLayout, type BoardRect } from "./board";
+import { CellBlockId, CellLockedBlockId, CellMarkedBlockId } from "./constants";
+import { renderBoardInstant, type BoardLayout, type BoardRect, placeNumber } from "./board";
 import { settings } from "./settings";
 import type { Level } from "./main";
 
@@ -43,14 +44,14 @@ export function playStartAnimation(level: Level, additionalCallback?: StartAnima
     if (!animation.enabled) {
         level.loadScene().then(
             () => {
-                // --- 场地加载完毕 ---
+                // --- Step 1：场地加载完毕 ---
                 additionalCallback?.onSceneLoaded?.();
 
-                // --- 开始出现盘面 ---
+                // --- Step 2：开始出现盘面 ---
                 additionalCallback?.onBoardAppear?.();
                 renderBoardInstant(layout, dimension);
 
-                // --- 动画结束 ---
+                // --- Step 3：动画结束 ---
                 level.boardOperable = true;
                 additionalCallback?.onFinished?.();
             },
@@ -68,7 +69,7 @@ export function playStartAnimation(level: Level, additionalCallback?: StartAnima
     const step1Tick = animation.playerCameraFadeInTime * 20;
 
     /** Step 2：黑屏淡出的时间点（step1 + hold + fadeout）。 */
-    const step2Tick = step1Tick + animation.playerCameraHoldTime * 20 + animation.playerCameraFadeOutTime * 20;
+    const step2Tick = step1Tick + (animation.playerCameraHoldTime + animation.playerCameraFadeOutTime) * 20;
 
     /** 加载面板所需的时间。 */
     const boardTicks = animation.showCellAnimationTime * 20;
@@ -80,21 +81,20 @@ export function playStartAnimation(level: Level, additionalCallback?: StartAnima
     lib.gameSystem.unsubscribeTimeline("startAnimation");
     lib.gameSystem.subscribeTimeline("startAnimation", time => {
         try {
-            // --- 场地加载 ---
+            // --- Step 1：场地加载完毕 ---
             if (time === step1Tick) {
                 level.loadScene().then(() => additionalCallback?.onSceneLoaded?.());
                 movePlayersToOverhead(players, layout, getPanelCenter(layout), layout.panelRect);
                 lib.PlayerUtils.lockPlayers(players);
             }
 
-            // --- 开始出现盘面 ---
+            // --- Step 2：开始出现盘面 ---
             else if (time === step2Tick) {
                 additionalCallback?.onBoardAppear?.();
                 playBoardAppear(level, createRenderSteps(layout, dimension), boardTicks);
-                playMusic("game_1", true);
             }
 
-            // --- 动画结束 ---
+            // --- Step 3：动画结束 ---
             else if (time >= step3Tick) {
                 lib.PlayerUtils.unlockPlayers(players);
                 level.boardOperable = true;
@@ -145,116 +145,248 @@ function playBoardAppear(level: Level, steps: (() => void)[], targetTicks: numbe
     });
 }
 
+/** 把布局切成一帧帧的渲染动作。
+ * @description 每一帧对应一个 tick 里要做的事，帧数决定动画粒度。
+ * 整个面板当作一张纸从上往下扫：列线索区先出，再接棋盘逐行。
+ */
+export function createRenderSteps(layout: BoardLayout, dimension: minecraft.Dimension): (() => void)[] {
+    const steps: (() => void)[] = [];
+
+    // 列线索先按层出现：从面板最上边一路扫到棋盘顶边
+    const clueLayers = groupByZ(layout.columnClues);
+    for (const z of [...clueLayers.keys()].sort((left, right) => left - right)) {
+        const layer = clueLayers.get(z);
+        steps.push(() => {
+            if (layer === undefined) return;
+            for (const clue of layer) placeNumber(clue.location, clue.value, dimension);
+        });
+    }
+
+    // 接着逐行铺棋盘，行线索和锁定格跟着所在行一起出现
+    for (const rect of layout.rowRects) {
+        steps.push(() => {
+            lib.BlockUtils.fill({ id: CellBlockId, from: rect.from, to: rect.to }, {}, dimension);
+            for (const clue of layout.rowClues) {
+                if (clue.row === rect.row) placeNumber(clue.location, clue.value, dimension);
+            }
+            for (const location of layout.locked) {
+                if (location.z === rect.from.z) dimension.setBlockType(location, CellLockedBlockId);
+            }
+        });
+    }
+
+    return steps;
+}
+
+/** 按 z 把方块分层，同一层的会一起出现或一起消失。 */
+export function groupByZ<T extends { readonly location: minecraft.Vector3 }>(items: readonly T[]): Map<number, T[]> {
+    const layers = new Map<number, T[]>();
+    for (const item of items) {
+        const layer = layers.get(item.location.z);
+        if (layer === undefined) layers.set(item.location.z, [item]);
+        else layer.push(item);
+    }
+    return layers;
+}
+
 // #endregion
 // #region 结束
 
-/** 播放结束动画：黑屏 -> 俯视盘面 -> 逐层擦除 -> 展示图案与关卡名 -> 退出关卡。 */
-export function playFinishAnimation(level: Level): Promise<boolean> {
-    return settings.animation.enabled ? playFinishAnimated(level) : playFinishInstant(level);
+/** 代表在开场动画不同的时间点额外执行的函数。 */
+export interface FinishAnimationAdditionalCallback {
+    /** 动画开始时执行的函数。 */
+    onStarted?: () => void;
+
+    /** 盘面擦除时执行的函数。 */
+    onBoardErase?: () => void;
+
+    /** 图案展示时执行的函数。 */
+    onFigureShowing?: () => void;
+
+    /** 动画结束时执行的函数。 */
+    onFinished?: () => void;
 }
 
-/** 结束流程（开启动画时）。 */
-function playFinishAnimated(level: Level): Promise<boolean> {
+/** 播放关卡结束动画。
+ * @description
+ * 开启动画时的流程：
+ * - Step 1：黑屏淡入后，禁止玩家操作，在格子区上方架镜头。
+ * - Step 2：黑屏淡出后，盘面逐层擦除数字。
+ * - Step 3：数字擦除完毕后，等待一段时间（默认值 4s）展示图案与关卡名。
+ * - Step 4：图案与关卡名展示完毕后，等待一段时间（默认值 8s）动画结束。
+ * @description
+ * 关闭动画时的流程：
+ * - Step 1：执行动画开始时的函数。
+ * - Step 2：立刻擦除数字。
+ * - Step 3：数字擦除完毕后，等待一段时间（默认值 4s）展示图案与关卡名。
+ * - Step 4：图案与关卡名展示完毕后，等待一段时间（默认值 8s）动画结束。
+ */
+export function playFinishAnimation(level: Level, additionalCallback?: FinishAnimationAdditionalCallback) {
+    // ===== 变量准备 =====
+
     const layout = level.layout;
     const animation = settings.animation;
     const dimension = minecraft.world.getDimension("overworld");
     const players = lib.PlayerUtils.getAll();
-    const eraseSteps = createEraseSteps(layout, dimension);
+    /** 在动作栏标题展示关卡名称。
+     * @remarks 由于动作栏标题至多展示约 3 秒且不能添加空字符串以终止，故而需要使用此方法。
+     */
+    const showFigureName = () => {
+        lib.gameSystem.subscribeTimeline("finishAnimationShowActionbar", time => {
+            if (time > (animation.holdFigureTime - 3) * 20) return false;
+            players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));
+        });
+    };
+    const animationEnabled = animation.enabled;
 
-    const fadeInTicks = Math.max(1, Math.round(animation.playerCameraFadeInTime * 20));
-    const holdTicks = Math.round(animation.playerCameraHoldTime * 20);
-    const fadeOutTicks = Math.round(animation.playerCameraFadeOutTime * 20);
-    const blackoutTicks = fadeInTicks + holdTicks + fadeOutTicks;
-    const eraseTicks = Math.max(1, Math.round(animation.showCellAnimationTime * 20));
-    const eraseEndTicks = blackoutTicks + eraseTicks - 1;
-    const figureTicks = blackoutTicks + Math.max(eraseTicks, Math.round(animation.holdEraseTime * 20));
-    const resetTicks = figureTicks + Math.round(animation.holdFigureTime * 20);
+    /** Step 1：动画开始，黑屏淡入的时间点。关闭动画时在首刻执行。 */
+    const step1Tick = animation.playerCameraFadeInTime * 20;
 
-    // 逐层擦除用累积速率推进，和开场动画同一套算法
-    const eraseRate = eraseSteps.length > 1 && eraseTicks > 1 ? (eraseSteps.length - 1) / (eraseTicks - 1) : eraseSteps.length;
-    let eraseAccumulator = 1;
-    let eraseIndex = 0;
+    /** Step 2：擦除数字的时间点（step1 + hold + fadeout）。关闭动画时在首刻执行。 */
+    const step2Tick = step1Tick + (animation.playerCameraHoldTime + animation.playerCameraFadeOutTime) * 20;
 
-    fadeCamera(players);
+    /** Step 3：显示图案的时间点（step2 + holdErase）。 */
+    const step3Tick = step2Tick + animation.holdEraseTime * 20;
 
-    return new Promise<boolean>(resolve =>
-        lib.gameSystem.subscribeTimeline("finishAnimation", time => {
-            try {
-                // 完全黑屏后，调整玩家视角，锁定玩家
-                if (time === fadeInTicks) {
+    /** Step 4：结束的时间点（step3 + holdFigure）。 */
+    const step4Tick = step3Tick + animation.holdFigureTime * 20;
+
+    // ===== 播放动画 =====
+
+    // 相机黑屏
+    if (animationEnabled) fadeCamera(players);
+
+    lib.gameSystem.subscribeTimeline("finishAnimation", time => {
+        try {
+            // --- Step 1：动画开始 ---
+            if (time === step1Tick) {
+                additionalCallback?.onStarted?.();
+                level.boardOperable = false;
+                if (animationEnabled) {
                     movePlayersToOverhead(players, layout, getCellCenter(layout), layout.boardRect);
                     lib.PlayerUtils.lockPlayers(players);
                 }
-                // 黑屏淡出后，逐步擦除数字和标记格子方块
-                if (time >= blackoutTicks && time <= eraseEndTicks) {
-                    eraseAccumulator += eraseRate;
-                    while (eraseAccumulator >= 1 && eraseIndex < eraseSteps.length) {
-                        eraseSteps[eraseIndex++]?.();
-                        eraseAccumulator -= 1;
-                    }
+            }
+
+            // --- Step 2：擦除数字 ---
+            if (time === step2Tick) {
+                additionalCallback?.onBoardErase?.();
+                if (animationEnabled) {
+                    playBoardErase(level, createEraseSteps(layout, dimension), animation.showCellAnimationTime * 20); // 以和显示盘面同样的速度擦除数字
+                } else {
+                    for (const step of createEraseSteps(layout, dimension)) step();
                 }
-                // 显示图案和关卡名称，音乐由 showFinish 一起放出
-                if (time === figureTicks) {
-                    while (eraseIndex < eraseSteps.length) eraseSteps[eraseIndex++]?.();
-                    showFinish(level, players);
-                }
-                // 动作栏文字会自己淡出，所以每秒补一次
-                if (time > figureTicks && time < resetTicks && time % 20 === 0) {
-                    players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));
-                }
-                // 离开时开始退出关卡程序
-                if (time >= resetTicks) {
-                    level.exit();
-                    resolve(true);
-                    return false;
-                }
-            } catch (cause) {
-                level.fail(cause);
-                resolve(false);
+            }
+
+            // --- Step 3：展示图案并播放动作栏标题 ---
+            if (time === step3Tick) {
+                additionalCallback?.onFigureShowing?.();
+                showFinish(level, players);
+                showFigureName();
+            }
+
+            // --- Step 4：动画结束 ---
+            if (time >= step4Tick) {
+                additionalCallback?.onFinished?.();
                 return false;
             }
-        }),
-    );
+        } catch (cause) {
+            level.fail(cause);
+            return false;
+        }
+    });
 }
 
-/** 结束流程（关闭动画时）：不黑屏，立刻完成擦除，只保留两段停留。 */
-function playFinishInstant(level: Level): Promise<boolean> {
-    const layout = level.layout;
-    const animation = settings.animation;
-    const dimension = minecraft.world.getDimension("overworld");
-    const players = lib.PlayerUtils.getAll();
+/** 播放加载盘面的动画。
+ * @param steps 渲染动作，按顺序执行。
+ */
+function playBoardErase(level: Level, steps: (() => void)[], targetTicks: number) {
+    /** 动画的总帧数。 */
+    const frames = steps.length;
 
-    // 立刻挪人、架镜头、锁操作。和开启动画时一样，只对准格子区。
-    movePlayersToOverhead(players, layout, getCellCenter(layout), layout.boardRect);
-    lib.PlayerUtils.lockPlayers(players);
+    /** 动画的总时长。 */
+    const ticks = Math.max(1, targetTicks);
 
-    // 擦除不逐层推进，一口气做完
-    for (const step of createEraseSteps(layout, dimension)) step();
+    /** 动画播放的速率。 */
+    const rate = frames / ticks;
 
-    const figureTicks = Math.max(1, Math.round(animation.holdEraseTime * 20));
+    /** 本次动画实际已加载的帧。 */
+    let loadedFrames = 0;
 
-    // 图案瞬间出现，holdFigureTime 就是完整图案的可见时长
-    const endTicks = figureTicks + Math.round(animation.holdFigureTime * 20);
+    lib.gameSystem.unsubscribeTimeline("boardErase");
+    lib.gameSystem.subscribeTimeline("boardErase", time => {
+        try {
+            /** 本次加载应该显示到的帧（动画速率 x 时间）。 */
+            const frameProgress = Math.min(frames, Math.round(rate * time)); // 防止越界
 
-    return new Promise<boolean>(resolve =>
-        lib.gameSystem.subscribeTimeline("finishAnimation", time => {
-            try {
-                if (time === figureTicks) showFinish(level, players);
-                if (time > figureTicks && time < endTicks && time % 20 === 0)
-                    players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));
-                if (time >= endTicks) {
-                    level.exit();
-                    clearLevelName(players);
-                    resolve(true);
-                    return false;
-                }
-            } catch (cause) {
-                level.fail(cause);
-                resolve(false);
-                return false;
+            // 将仍未加载的目标帧加载出来
+            while (loadedFrames < frameProgress) {
+                steps[loadedFrames]?.(); // 此时应加载第 n 帧，这时 loadedFrames = n-1，这时它在帧函数数组中的索引刚好是 n-1
+                loadedFrames++;
             }
-        }),
-    );
+        } catch (cause) {
+            level.fail(cause);
+            return false;
+        }
+
+        // 所有帧都加载出来后，立刻终止运行
+        if (loadedFrames >= frames) return false;
+    });
+}
+
+/** 把「擦掉盘面」切成一帧帧：从面板最上边一路扫到棋盘底边。
+ * @description 每一层清掉该层的线索方块；落在棋盘范围内的层，顺便把标记格和锁定格还原成普通格子。
+ */
+export function createEraseSteps(layout: BoardLayout, dimension: minecraft.Dimension): (() => void)[] {
+    const steps: (() => void)[] = [];
+
+    // 线索按 z 收拢，同一层的列线索和行线索会一起消失
+    const clueLayers = groupByZ([...layout.rowClues, ...layout.columnClues]);
+
+    const boardTop = layout.boardRect.from.z;
+    const boardBottom = layout.boardRect.to.z;
+
+    // 从最上面一层线索开始扫
+    let top = boardTop;
+    for (const z of clueLayers.keys()) top = Math.min(top, z);
+
+    for (let z = top; z <= boardBottom; z++) {
+        const clues = clueLayers.get(z);
+        const rowRect = layout.rowRects[z - boardTop];
+
+        steps.push(() => {
+            // 这一层的线索方块清成空气
+            if (clues !== undefined) {
+                for (const clue of clues) dimension.setBlockType(clue.location, "minecraft:air");
+            }
+
+            // 棋盘行：把标记格和锁定格还原成普通格子，已挖开的空气保持不动
+            if (rowRect === undefined) return;
+            for (let x = rowRect.from.x; x <= rowRect.to.x; x++) {
+                const location = { x, y: rowRect.from.y, z: rowRect.from.z };
+                const block = dimension.getBlock(location);
+                if (block === undefined) continue;
+                if (block.typeId === CellMarkedBlockId || block.typeId === CellLockedBlockId) {
+                    dimension.setBlockType(location, CellBlockId);
+                }
+            }
+        });
+    }
+
+    return steps;
+}
+
+/** 显示图案并播放音乐。 */
+function showFinish(level: Level, players: minecraft.Player[]) {
+    // 加载通关图案
+    const structureId = level.figureStructureId;
+    if (structureId) lib.StructureUtils.placeAsync(structureId, level.layout.startLocation);
+
+    // 显示动作栏标题
+    players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));
+
+    // 播放音乐
+    playMusic("show_picture", false);
 }
 
 // #endregion
@@ -266,9 +398,6 @@ function playFinishInstant(level: Level): Promise<boolean> {
 export function playExitAnimation(level: Level): Promise<boolean> {
     const animation = settings.animation;
     const players = lib.PlayerUtils.getAll();
-
-    // 移除玩家的快捷栏标题
-    clearLevelName(players);
 
     // ===== 关闭动画时 =====
 
@@ -376,24 +505,6 @@ function fadeCamera(players: minecraft.Player[]) {
  */
 function playMusic(musicId: string, loop: boolean) {
     lib.PlayerUtils.getAll().forEach(player => player.playMusic(musicId, { loop }));
-}
-
-/** 显示图案并播放音乐。 */
-function showFinish(level: Level, players: minecraft.Player[]) {
-    // 加载通关图案
-    const structureId = level.figureStructureId;
-    if (structureId) lib.StructureUtils.placeAsync(structureId, level.layout.startLocation);
-
-    // 显示快捷栏标题
-    players.forEach(player => player.onScreenDisplay.setActionBar({ translate: level.game.name }));
-
-    // 播放音乐
-    playMusic("show_picture", false);
-}
-
-/** 清掉动作栏上的关卡名。 */
-function clearLevelName(players: minecraft.Player[]) {
-    players.forEach(player => player.onScreenDisplay.setActionBar(""));
 }
 
 // #endregion
