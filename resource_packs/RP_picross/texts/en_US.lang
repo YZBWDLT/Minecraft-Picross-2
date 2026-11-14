@@ -160,8 +160,22 @@ picross:tool.name=Tools
 
 ### Tutorial
 levelName.0-1=Smile
-### Chapter 1
-levelName.1-1=Example
+### 第 1 章
+levelName.1-1=§g§lAngry
+levelName.1-2=§iGear
+levelName.1-3=§c§lHeart
+levelName.1-4=§7Wifi
+levelName.1-5=Japanese“の”
+levelName.1-6=§eLike
+levelName.1-7=4
+levelName.1-8=§9Helicopter
+levelName.1-9=§3§oAlam Clock
+levelName.1-10=§dMarigold Seedling
+levelName.1-11=§2Train
+levelName.1-12=§g§lSunshade
+levelName.1-13=§bMaster §eSword
+levelName.1-14=§6Mango
+levelName.1-15=§7Snake
 ### Levels in Picross 1
 levelName.picross1Levels.1-1=§aCreeper
 levelName.picross1Levels.1-2=§6Power Source

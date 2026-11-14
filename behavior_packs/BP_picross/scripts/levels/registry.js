@@ -1,9 +1,6 @@
 import { car, chest, creeper, glasses, letterG, powerSource } from "./picross1Chapter1";
 import { smile } from "./tutorial";
-// ===== 提醒巴豆 =====
-// 在写完关卡之后，请将关卡导入到这里。注意使用`import`语句导入。
-// 注意：每个模式对应的第一个章节对应的永远是教程关卡——请不要把正常关卡塞到教程关卡里。
-// 看完之后记得销毁这些注释 :)
+import { angry, gear, heart, wifi, Japanese_no, like, four, helicopter, alarm_clock, marigold_seedling, train, sunshade, master_sword, mango, snake } from "./chapter1";
 /** 所有关卡。
  * @remarks
  * 该注册表是一个`LevelData[][]`的形式。
@@ -14,7 +11,7 @@ export const levels = {
     /** 主线关卡。 */
     main: [
         [smile], // 教程关卡
-        [], // 第 1 章
+        [angry, gear, heart, wifi, Japanese_no, like, four, helicopter, alarm_clock, marigold_seedling, train, sunshade, master_sword, mango, snake], // 第 1 章
         [], // 第 2 章
         [], // 第 3 章
         [], // 第 4 章

@@ -161,7 +161,21 @@ picross:tool.name=工具
 ### 教程
 levelName.0-1=笑脸
 ### 第 1 章
-levelName.1-1=示例
+levelName.1-1=§g§l生气
+levelName.1-2=§i齿轮
+levelName.1-3=§c§l心
+levelName.1-4=§7wifi
+levelName.1-5=日语“の”
+levelName.1-6=§e点赞
+levelName.1-7=4
+levelName.1-8=§9直升机
+levelName.1-9=§3§o闹钟
+levelName.1-10=§d金盏花幼苗
+levelName.1-11=§2火车
+levelName.1-12=§g§l遮阳伞
+levelName.1-13=§b大师§e之剑
+levelName.1-14=§6芒果
+levelName.1-15=§7蛇
 ### Picross 1 的关卡
 levelName.picross1Levels.1-1=§a苦力怕
 levelName.picross1Levels.1-2=§6电源
