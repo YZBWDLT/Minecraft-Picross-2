@@ -130,6 +130,7 @@
         "pencil": { "textures": "textures/items/pencil" },
         "eraser": { "textures": "textures/items/eraser" },
         "pencil_and_eraser": { "textures": "textures/items/pencil_and_eraser" },
-        "quit_level": { "textures": "textures/items/quit_level" }
+        "quit_level": { "textures": "textures/items/quit_level" },
+        "settings": { "textures": "textures/items/settings" }
     }
 }
