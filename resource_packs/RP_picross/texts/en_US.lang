@@ -3,13 +3,14 @@
 item.picross:pencil=Pencil
 item.picross:eraser=Eraser
 item.picross:pencil_and_eraser=Pencil and Eraser
-item.picross:quit_level=quit_level Level
+item.picross:quit_level=Quit Level
+item.picross:settings=Settings
 
 ## ===== Blocks =====
 
 ### Help
-tile.picross:help_yes.name=help_yes
-tile.picross:help_no.name=help_no
+tile.picross:help_yes.name=Yes
+tile.picross:help_no.name=No
 
 ### Arrow Blocks
 tile.picross:arrow.name=Arrow Block

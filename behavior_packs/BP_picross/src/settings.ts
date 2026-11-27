@@ -1,14 +1,16 @@
 // *-*-*-*-*-*-* 设置 *-*-*-*-*-*-*
 // 动画时长、镜头高度与场地主题。这里只放可调的值，不含任何逻辑。
 
-import { type Vector3 } from "@minecraft/server";
+import { Player, world } from "@minecraft/server";
+import { AllowBreakBlock, AllowInteract, SettingsId } from "./constants";
+import { CustomForm, MessageBox } from "./lib/form";
 
-// #region 动画
+// ===== 设置 =====
 
 /** 开场与结束动画共用的设置。
  * @description 两段动画都用同一套黑屏参数和相机高度，只是各自的展示时长不同。
  */
-export interface AnimationSettings {
+interface AnimationSettings {
     /** 是否启用动画。关闭后开场直接铺盘，退场直接重置场地。 */
     enabled: boolean;
 
@@ -43,9 +45,6 @@ export interface AnimationSettings {
     cameraMinHeight: number;
 }
 
-// #endregion
-// #region 设置
-
 /** 游戏设置。 */
 export class Settings {
     /** 动画设置。 */
@@ -66,26 +65,54 @@ export class Settings {
 /** 当前使用的设置。 */
 export const settings = new Settings();
 
-// #endregion
-// #region 主题
+// ===== 监听玩家使用设置物品 =====
 
-/** 表示一个数织场地的主题。 */
-export interface Theme {
-    /** 待加载的结构 ID。 */
-    readonly structureId: string;
+world.afterEvents.itemUse.subscribe(event => {
+    const { itemStack, source: player } = event;
+    if (itemStack.typeId !== SettingsId) return;
+    showSettings(player);
+});
 
-    /** 结构加载的位置。 */
-    readonly structureLocation: Vector3;
+function showSettings(player: Player) {
+    const mainForm = new CustomForm(player, "开发者设置", "action");
+    mainForm
+        .button("破坏交互权限", () => {
+            mainForm.close();
+            permissionForm.show();
+        })
+        .button("场景切换", () => {
+            mainForm.close();
+            themeForm.show();
+        })
+        .button("谜题状态检查", () => {
+            mainForm.close();
+            puzzleForm.show();
+        })
+        .show();
 
-    /** 盘面的中心位置。它也同时决定允许放置格子方块的高度和初始状态下放置线索方块的高度。 */
-    readonly boardCenter: Vector3;
+    const permissionForm = new CustomForm(player, "破坏交互权限", "modal");
+    const playerCanBreakBlock = player.hasTag(AllowBreakBlock);
+    const playerCanInteract = player.hasTag(AllowInteract);
+    permissionForm
+        .toggle(
+            "允许破坏方块",
+            value => {
+                if (value) player.addTag(AllowBreakBlock);
+                else player.removeTag(AllowBreakBlock);
+            },
+            { default: playerCanBreakBlock },
+        )
+        .toggle(
+            "允许交互",
+            value => {
+                if (value) player.addTag(AllowInteract);
+                else player.removeTag(AllowInteract);
+            },
+            { default: playerCanInteract },
+        );
+
+    const themeForm = new CustomForm(player, "场景切换", "action");
+    themeForm.button("淘金热", () => {});
+
+    const puzzleForm = new CustomForm(player, "谜题状态检查", "action");
 }
-
-/** 黄金矿场主题。 */
-export const goldRush: Theme = {
-    structureId: "picross:map_goldrush",
-    structureLocation: { x: -31, y: -42, z: -31 },
-    boardCenter: { x: 0, y: -41, z: 0 },
-};
-
-// #endregion

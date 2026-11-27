@@ -6,7 +6,7 @@ import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
 import type * as picross from "./picross";
 import { CellBlockId, CellLockedBlockId } from "./constants";
-import { goldRush } from "./settings";
+import { goldRush } from "./theme";
 
 // #region 方块 ID
 

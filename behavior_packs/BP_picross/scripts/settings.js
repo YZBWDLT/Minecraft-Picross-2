@@ -1,8 +1,8 @@
 // *-*-*-*-*-*-* 设置 *-*-*-*-*-*-*
 // 动画时长、镜头高度与场地主题。这里只放可调的值，不含任何逻辑。
-import {} from "@minecraft/server";
-// #endregion
-// #region 设置
+import { Player, world } from "@minecraft/server";
+import { AllowBreakBlock, AllowInteract, SettingsId } from "./constants";
+import { CustomForm, MessageBox } from "./lib/form";
 /** 游戏设置。 */
 export class Settings {
     /** 动画设置。 */
@@ -21,10 +21,46 @@ export class Settings {
 }
 /** 当前使用的设置。 */
 export const settings = new Settings();
-/** 黄金矿场主题。 */
-export const goldRush = {
-    structureId: "picross:map_goldrush",
-    structureLocation: { x: -31, y: -42, z: -31 },
-    boardCenter: { x: 0, y: -41, z: 0 },
-};
-// #endregion
+// ===== 监听玩家使用设置物品 =====
+world.afterEvents.itemUse.subscribe(event => {
+    const { itemStack, source: player } = event;
+    if (itemStack.typeId !== SettingsId)
+        return;
+    showSettings(player);
+});
+function showSettings(player) {
+    const mainForm = new CustomForm(player, "开发者设置", "action");
+    mainForm
+        .button("破坏交互权限", () => {
+        mainForm.close();
+        permissionForm.show();
+    })
+        .button("场景切换", () => {
+        mainForm.close();
+        themeForm.show();
+    })
+        .button("谜题状态检查", () => {
+        mainForm.close();
+        puzzleForm.show();
+    })
+        .show();
+    const permissionForm = new CustomForm(player, "破坏交互权限", "modal");
+    const playerCanBreakBlock = player.hasTag(AllowBreakBlock);
+    const playerCanInteract = player.hasTag(AllowInteract);
+    permissionForm
+        .toggle("允许破坏方块", value => {
+        if (value)
+            player.addTag(AllowBreakBlock);
+        else
+            player.removeTag(AllowBreakBlock);
+    }, { default: playerCanBreakBlock })
+        .toggle("允许交互", value => {
+        if (value)
+            player.addTag(AllowInteract);
+        else
+            player.removeTag(AllowInteract);
+    }, { default: playerCanInteract });
+    const themeForm = new CustomForm(player, "场景切换", "action");
+    themeForm.button("淘金热", () => { });
+    const puzzleForm = new CustomForm(player, "谜题状态检查", "action");
+}

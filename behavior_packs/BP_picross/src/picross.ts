@@ -41,7 +41,7 @@
  *   game.takeHint();                   // 给一个提示（改一格）
  *   game.autoCrossCompletedLines();    // 已完成的行列自动打叉
  *
- * 由基于 Deepseek v4.1 flash 的 WorkBuddy 生成。
+ * 由基于 Deepseek v4.1 Flash 的 WorkBuddy 生成。
  */
 
 // #region 常量与基础类型

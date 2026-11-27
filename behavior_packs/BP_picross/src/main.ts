@@ -3,28 +3,19 @@ import * as lib from "./lib";
 import * as picross from "./picross";
 import * as board from "./board";
 import * as animation from "./animation";
-import { goldRush } from "./settings";
+import { goldRush } from "./theme";
 import type { LevelData } from "./levels/type";
 import { levels } from "./levels/registry";
-import { CellBlockId, CellMarkedBlockId, PencilAndEraserId, PencilId, EraserId, QuitLevelId } from "./constants";
-
-// #region 调试
-
-/** 仅调试用：右键钻石切换开发者权限。开发者不受任何交互与破坏限制。 */
-minecraft.world.afterEvents.itemUse.subscribe(event => {
-    const { source: player, itemStack: diamond } = event;
-    if (diamond.typeId !== "minecraft:diamond") return;
-    const playerHasPermission = player.hasTag("picross:developer");
-    if (playerHasPermission) {
-        player.removeTag("picross:developer");
-        player.sendMessage("§c已移除开发者权限");
-    } else {
-        player.addTag("picross:developer");
-        player.sendMessage("§a已添加开发者权限");
-    }
-});
-
-// #endregion
+import {
+    CellBlockId,
+    CellMarkedBlockId,
+    PencilAndEraserId,
+    PencilId,
+    EraserId,
+    QuitLevelId,
+    AllowBreakBlock,
+    AllowInteract,
+} from "./constants";
 
 // #region 变量定义
 
@@ -208,13 +199,13 @@ class ChooseLevelMenu {
         // ===== 玩家破坏方块检测 =====
         // 阻止玩家破坏一切方块，不阻止开发者
         lib.gameSystem.subscribeEvent("playerBreakBlockTest", minecraft.world.beforeEvents.playerBreakBlock, event => {
-            event.cancel = !event.player.hasTag("picross:developer");
+            event.cancel = !event.player.hasTag(AllowBreakBlock);
         });
 
         // ===== 玩家破坏方块检测 =====
         // 阻止玩家的一切交互，不阻止开发者
         lib.gameSystem.subscribeEvent("playerInteractWithBlockTest", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
-            event.cancel = !event.player.hasTag("picross:developer");
+            event.cancel = !event.player.hasTag(AllowInteract);
 
             if (!event.isFirstEvent) return;
 
@@ -340,7 +331,7 @@ export class Level {
         // 阻止玩家破坏除了格子方块之外的一切方块，不阻止开发者
         lib.gameSystem.subscribeEvent("playerBreakBlockTest", minecraft.world.beforeEvents.playerBreakBlock, event => {
             const { block, player } = event;
-            event.cancel = !player.hasTag("picross:developer");
+            event.cancel = !player.hasTag(AllowBreakBlock);
             if (!this.boardOperable) return; // 在播放动画时也禁止，防止玩家在播放动画时和盘面交互
             if (block.hasTag(CellBlockId)) {
                 event.cancel = false;
@@ -415,7 +406,7 @@ export class Level {
         lib.gameSystem.subscribeEvent("playerInteractWithBlockTest", minecraft.world.beforeEvents.playerInteractWithBlock, event => {
             const { player, itemStack: item, isFirstEvent, block } = event;
 
-            event.cancel = !player.hasTag("picross:developer"); // 允许开发者的交互
+            event.cancel = !player.hasTag(AllowInteract); // 允许开发者的交互
             if (!this.boardOperable) return; // 在播放动画时也禁止，防止玩家在播放动画时和盘面交互
 
             // --- 1. 在允许的高度下使用格子方块的交互 ---

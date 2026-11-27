@@ -4,7 +4,7 @@
 import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
 import { CellBlockId, CellLockedBlockId } from "./constants";
-import { goldRush } from "./settings";
+import { goldRush } from "./theme";
 // #region 方块 ID
 /** 线索方块 ID 前缀，后面接 0~30。 */
 const NumberBlockPrefix = "picross:clue_block_";
