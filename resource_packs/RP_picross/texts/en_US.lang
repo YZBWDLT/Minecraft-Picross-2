@@ -186,3 +186,7 @@ levelName.picross1Levels.1-5=§93D §cGlasses
 levelName.picross1Levels.1-6=§bCar
 entity.picross:button.name=Button
 entity.picross:title.name=Title
+
+## ===== Theme Names =====
+
+theme.goldRush=Gold Rush

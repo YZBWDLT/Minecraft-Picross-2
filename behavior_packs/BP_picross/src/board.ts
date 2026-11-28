@@ -6,7 +6,8 @@ import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
 import type * as picross from "./picross";
 import { CellBlockId, CellLockedBlockId } from "./constants";
-import { goldRush } from "./theme";
+import { settings } from "./settings";
+import { getCurrentTheme } from "./theme";
 
 // #region 方块 ID
 
@@ -93,7 +94,7 @@ export function getLayout(game: picross.PicrossGame): BoardLayout {
 
     const panelWidth = width + clueColumns;
     const panelHeight = height + clueRows;
-    const center = goldRush.boardCenter; // 面板的几何中心，随使用的主题而变化
+    const center = getCurrentTheme(settings).boardCenter;
 
     // 将盘面放在正中间
     const boardX = center.x - Math.floor(panelWidth / 2) + clueColumns;

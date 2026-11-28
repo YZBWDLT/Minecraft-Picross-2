@@ -27,6 +27,43 @@ export const QuitLevelId = "picross:quit_level";
 /** 设置 ID。 */
 export const SettingsId = "picross:settings";
 
+// ===== 游戏模式定义 =====
+
+export enum Mode {
+    /** 主线关卡。 */
+    Main = "main",
+
+    /** 迷你游戏 - 间隔模式。 */
+    Gap = "gap",
+
+    /** 迷你游戏 - 打乱模式。 */
+    Shuffle = "shuffle",
+
+    /** 迷你游戏 - 宽数字模式。 */
+    WideClue = "wideClue",
+
+    /** 迷你游戏 - 雷达模式。 */
+    Radar = "radar",
+
+    /** 拼图模式。 */
+    Mosaic = "mosaic",
+
+    /** 自定义模式。 */
+    CustomMode = "customMode",
+
+    /** 1 代普通关卡。 */
+    Picross1Normal = "picross1Normal",
+
+    /** 1 代困难关卡。 */
+    Picross1Hard = "picross1Hard",
+
+    /** 1 代间隔模式。 */
+    Picross1Gap = "picross1Gap",
+
+    /** 1 代打乱模式。 */
+    Picross1Shuffle = "picross1Shuffle",
+}
+
 // ===== 开发者标签 =====
 
 /** 开发者标签：允许破坏方块。 */

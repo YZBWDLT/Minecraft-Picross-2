@@ -3,55 +3,10 @@ import * as lib from "./lib";
 import * as picross from "./picross";
 import * as board from "./board";
 import * as animation from "./animation";
-import { goldRush } from "./theme";
 import { levels } from "./levels/registry";
-import { CellBlockId, CellMarkedBlockId, PencilAndEraserId, PencilId, EraserId, QuitLevelId, AllowBreakBlock, AllowInteract, } from "./constants";
-// #region 变量定义
-/** 点击即可切换完成状态的方块 tag。 */
-const ClueTags = ["picross:clue", "picross:arrow"];
-/** 游戏模式。 */
-export var Mode;
-(function (Mode) {
-    /** 主线关卡。 */
-    Mode["Main"] = "main";
-    /** 迷你游戏 - 间隔模式。 */
-    Mode["Gap"] = "gap";
-    /** 迷你游戏 - 打乱模式。 */
-    Mode["Shuffle"] = "shuffle";
-    /** 迷你游戏 - 宽数字模式。 */
-    Mode["WideClue"] = "wideClue";
-    /** 迷你游戏 - 雷达模式。 */
-    Mode["Radar"] = "radar";
-    /** 拼图模式。 */
-    Mode["Mosaic"] = "mosaic";
-    /** 自定义模式。 */
-    Mode["CustomMode"] = "customMode";
-    /** 1 代普通关卡。 */
-    Mode["Picross1Normal"] = "picross1Normal";
-    /** 1 代困难关卡。 */
-    Mode["Picross1Hard"] = "picross1Hard";
-    /** 1 代间隔模式。 */
-    Mode["Picross1Gap"] = "picross1Gap";
-    /** 1 代打乱模式。 */
-    Mode["Picross1Shuffle"] = "picross1Shuffle";
-})(Mode || (Mode = {}));
-// #endregion
-// #region 游戏记录
-/** 游戏记录。 */
-let progress = {
-    main: { chapter: 0, level: 0 },
-    gap: { chapter: 0, level: 0 },
-    shuffle: { chapter: 0, level: 0 },
-    wideClue: { chapter: 0, level: 0 },
-    radar: { chapter: 0, level: 0 },
-    mosaic: { chapter: 0, level: 0 },
-    customMode: { chapter: 0, level: 0 },
-    picross1Normal: { chapter: 0, level: 0 },
-    picross1Hard: { chapter: 0, level: 0 },
-    picross1Gap: { chapter: 0, level: 0 },
-    picross1Shuffle: { chapter: 0, level: 0 },
-};
-// #endregion
+import { settings } from "./settings";
+import { getCurrentTheme } from "./theme";
+import { CellBlockId, CellMarkedBlockId, PencilAndEraserId, PencilId, EraserId, QuitLevelId, AllowBreakBlock, AllowInteract, Mode, } from "./constants";
 // #region 游戏菜单
 /** 一个选关界面。 */
 class ChooseLevelMenu {
@@ -348,7 +303,7 @@ export class Level {
             // --- 1. 在允许的高度下使用格子方块的交互 ---
             if (board.isCellBlock(item?.typeId ?? "")) {
                 const placeLocation = lib.BlockUtils.getPlaceLocation(event);
-                if (placeLocation.y === goldRush.boardCenter.y && !tryHandle(player, placeLocation)) {
+                if (placeLocation.y === getCurrentTheme(settings).boardCenter.y && !tryHandle(player, placeLocation)) {
                     event.cancel = false;
                     minecraft.system.run(() => this.placeCellBlock(placeLocation));
                     return;
@@ -359,6 +314,7 @@ export class Level {
                 handledBlocks.delete(player.id);
                 lockedPaintModes.delete(player.id);
             }
+            const ClueTags = ["picross:clue", "picross:arrow"];
             if (ClueTags.some(clueTag => block.hasTag(clueTag))) {
                 if (tryHandle(player, block.location))
                     return;
@@ -425,7 +381,7 @@ export class Level {
     }
     /** 加载场地结构。 */
     loadScene(animationSeconds = 1) {
-        return lib.StructureUtils.placeAsync(goldRush.structureId, goldRush.structureLocation, {
+        return lib.StructureUtils.placeAsync(getCurrentTheme(settings).structureId, getCurrentTheme(settings).structureLocation, {
             animationMode: minecraft.StructureAnimationMode.Layers,
             animationSeconds,
         });
@@ -485,7 +441,7 @@ export class Level {
 // #region 入口
 minecraft.world.afterEvents.worldLoad.subscribe(() => {
     async function loadGame() {
-        await lib.StructureUtils.placeAsync(goldRush.structureId, goldRush.structureLocation, {
+        await lib.StructureUtils.placeAsync(getCurrentTheme(settings).structureId, getCurrentTheme(settings).structureLocation, {
             animationMode: minecraft.StructureAnimationMode.Layers,
             animationSeconds: 1,
         });

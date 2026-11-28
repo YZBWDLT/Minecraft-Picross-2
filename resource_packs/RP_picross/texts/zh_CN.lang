@@ -186,3 +186,7 @@ levelName.picross1Levels.1-5=§93D§c眼镜
 levelName.picross1Levels.1-6=§b汽车
 entity.picross:button.name=按钮
 entity.picross:title.name=标题
+
+## ===== Theme Names =====
+
+theme.goldRush=淘金热

@@ -1,8 +1,24 @@
 import type { LevelData } from "./type";
-import type { Mode } from "../main";
+import type { Mode } from "../constants";
 import { car, chest, creeper, glasses, letterG, powerSource } from "./picross1Chapter1";
 import { smile } from "./tutorial";
-import { angry, gear, heart, wifi, Japanese_no, like, four, helicopter, alarm_clock,  marigold_seedling, train, sunshade, master_sword, mango, snake} from "./chapter1";
+import {
+    angry,
+    gear,
+    heart,
+    wifi,
+    Japanese_no,
+    like,
+    four,
+    helicopter,
+    alarm_clock,
+    marigold_seedling,
+    train,
+    sunshade,
+    master_sword,
+    mango,
+    snake,
+} from "./chapter1";
 
 /** 所有关卡。
  * @remarks
@@ -14,7 +30,23 @@ export const levels: Record<Mode, LevelData[][]> = {
     /** 主线关卡。 */
     main: [
         [smile], // 教程关卡
-        [angry, gear, heart, wifi, Japanese_no, like, four, helicopter, alarm_clock,  marigold_seedling, train, sunshade, master_sword, mango, snake], // 第 1 章
+        [
+            angry,
+            gear,
+            heart,
+            wifi,
+            Japanese_no,
+            like,
+            four,
+            helicopter,
+            alarm_clock,
+            marigold_seedling,
+            train,
+            sunshade,
+            master_sword,
+            mango,
+            snake,
+        ], // 第 1 章
         [], // 第 2 章
         [], // 第 3 章
         [], // 第 4 章

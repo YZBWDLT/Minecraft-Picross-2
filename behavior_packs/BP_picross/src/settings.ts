@@ -4,12 +4,10 @@
 import { Player, world } from "@minecraft/server";
 import { AllowBreakBlock, AllowInteract, SettingsId } from "./constants";
 import { CustomForm, MessageBox } from "./lib/form";
+import type { Mode } from "./constants";
 
 // ===== 设置 =====
 
-/** 开场与结束动画共用的设置。
- * @description 两段动画都用同一套黑屏参数和相机高度，只是各自的展示时长不同。
- */
 interface AnimationSettings {
     /** 是否启用动画。关闭后开场直接铺盘，退场直接重置场地。 */
     enabled: boolean;
@@ -45,7 +43,20 @@ interface AnimationSettings {
     cameraMinHeight: number;
 }
 
-/** 游戏设置。 */
+interface ThemeSettings {
+    /** 当前正在使用的主题 ID。 */
+    id: string;
+}
+
+interface ProgressSettings {
+    /** 当前最快的章节进度。 */
+    chapter: number;
+    level: number;
+}
+
+/** 游戏设置。
+ * @remarks 设置中可能包含
+ */
 export class Settings {
     /** 动画设置。 */
     animation: AnimationSettings = {
@@ -60,10 +71,55 @@ export class Settings {
         cameraMaxHeight: 35,
         cameraMinHeight: 8,
     };
+
+    /** 主题设置。 */
+    theme: ThemeSettings = {
+        id: "goldRush",
+    };
 }
 
 /** 当前使用的设置。 */
 export const settings = new Settings();
+
+// ===== 玩家进度 =====
+
+/** 代表地图当前进度。 */
+export class Progress {
+    constructor() {}
+
+    /** 主线关卡的通关进度。 */
+    main: boolean[][] = [];
+
+    /** 迷你游戏 - 间隔模式进度。 */
+    gap: boolean[][] = [];
+
+    /** 迷你游戏 - 打乱模式进度。 */
+    shuffle: boolean[][] = [];
+
+    /** 迷你游戏 - 宽数字模式进度。 */
+    wideClue: boolean[][] = [];
+
+    /** 迷你游戏 - 雷达模式进度。 */
+    radar: boolean[][] = [];
+
+    /** 拼图模式进度。 */
+    mosaic: boolean[][] = [];
+
+    /** 自定义模式进度。 */
+    customMode: boolean[][] = [];
+
+    /** 1 代普通关卡进度。 */
+    picross1Normal: boolean[][] = [];
+
+    /** 1 代困难关卡进度。 */
+    picross1Hard: boolean[][] = [];
+
+    /** 1 代间隔模式进度。 */
+    picross1Gap: boolean[][] = [];
+
+    /** 1 代打乱模式进度。 */
+    picross1Shuffle: boolean[][] = [];
+}
 
 // ===== 监听玩家使用设置物品 =====
 

@@ -3,7 +3,9 @@
 import { Player, world } from "@minecraft/server";
 import { AllowBreakBlock, AllowInteract, SettingsId } from "./constants";
 import { CustomForm, MessageBox } from "./lib/form";
-/** 游戏设置。 */
+/** 游戏设置。
+ * @remarks 设置中可能包含
+ */
 export class Settings {
     /** 动画设置。 */
     animation = {
@@ -18,9 +20,40 @@ export class Settings {
         cameraMaxHeight: 35,
         cameraMinHeight: 8,
     };
+    /** 主题设置。 */
+    theme = {
+        id: "goldRush",
+    };
 }
 /** 当前使用的设置。 */
 export const settings = new Settings();
+// ===== 玩家进度 =====
+/** 代表地图当前进度。 */
+export class Progress {
+    constructor() { }
+    /** 主线关卡的通关进度。 */
+    main = [];
+    /** 迷你游戏 - 间隔模式进度。 */
+    gap = [];
+    /** 迷你游戏 - 打乱模式进度。 */
+    shuffle = [];
+    /** 迷你游戏 - 宽数字模式进度。 */
+    wideClue = [];
+    /** 迷你游戏 - 雷达模式进度。 */
+    radar = [];
+    /** 拼图模式进度。 */
+    mosaic = [];
+    /** 自定义模式进度。 */
+    customMode = [];
+    /** 1 代普通关卡进度。 */
+    picross1Normal = [];
+    /** 1 代困难关卡进度。 */
+    picross1Hard = [];
+    /** 1 代间隔模式进度。 */
+    picross1Gap = [];
+    /** 1 代打乱模式进度。 */
+    picross1Shuffle = [];
+}
 // ===== 监听玩家使用设置物品 =====
 world.afterEvents.itemUse.subscribe(event => {
     const { itemStack, source: player } = event;

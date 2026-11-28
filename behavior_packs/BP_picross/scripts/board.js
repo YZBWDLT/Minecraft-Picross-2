@@ -4,7 +4,8 @@
 import * as minecraft from "@minecraft/server";
 import * as lib from "./lib";
 import { CellBlockId, CellLockedBlockId } from "./constants";
-import { goldRush } from "./theme";
+import { settings } from "./settings";
+import { getCurrentTheme } from "./theme";
 // #region 方块 ID
 /** 线索方块 ID 前缀，后面接 0~30。 */
 const NumberBlockPrefix = "picross:clue_block_";
@@ -35,7 +36,7 @@ export function getLayout(game) {
     const clueRows = Math.max(...columns.map(clue => clue.length));
     const panelWidth = width + clueColumns;
     const panelHeight = height + clueRows;
-    const center = goldRush.boardCenter; // 面板的几何中心，随使用的主题而变化
+    const center = getCurrentTheme(settings).boardCenter;
     // 将盘面放在正中间
     const boardX = center.x - Math.floor(panelWidth / 2) + clueColumns;
     const boardZ = center.z - Math.floor(panelHeight / 2) + clueRows;
